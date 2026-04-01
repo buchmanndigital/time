@@ -97,7 +97,7 @@ export function HomeAssistantChat() {
           placeholder="Nachricht an den Assistenten …"
           disabled={loading}
           rows={1}
-          className="max-h-48 min-h-[2.75rem] w-full resize-none bg-transparent py-2.5 pl-2 pr-2 text-[0.95rem] leading-relaxed text-foreground outline-none placeholder:text-foreground/35 disabled:opacity-60"
+          className="max-h-48 min-h-[2.75rem] w-full resize-none bg-transparent py-2.5 pl-2 pr-2 text-base leading-relaxed text-foreground outline-none placeholder:text-foreground/35 disabled:opacity-60 md:text-[0.95rem]"
         />
         <button
           type="button"

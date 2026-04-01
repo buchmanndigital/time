@@ -19,7 +19,7 @@ export function CreateCustomerForm() {
           required
           maxLength={200}
           placeholder="z. B. Firma Muster GmbH"
-          className="rounded-lg border border-foreground/15 bg-background px-3 py-2 text-foreground outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/15"
+          className="rounded-lg border border-foreground/15 bg-background px-3 py-2 text-base text-foreground outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/15 md:text-sm"
         />
       </label>
       {state.error ? (

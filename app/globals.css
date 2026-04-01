@@ -27,3 +27,14 @@ body {
   color: var(--foreground);
   overflow-x: hidden;
 }
+
+/* Mind. 16px in Formularfeldern auf schmalen Viewports (verhindert iOS-Zoom beim Fokus). */
+@layer base {
+  @media (max-width: 767px) {
+    textarea,
+    select,
+    input:not([type="button"], [type="checkbox"], [type="hidden"], [type="image"], [type="radio"], [type="reset"], [type="submit"], [type="file"], [type="range"]) {
+      font-size: max(16px, 1em);
+    }
+  }
+}

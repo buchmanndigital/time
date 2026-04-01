@@ -17,7 +17,7 @@ export function RegisterForm() {
           type="email"
           autoComplete="email"
           required
-          className="rounded-md border border-foreground/15 bg-background px-3 py-2 text-foreground outline-none focus:border-foreground/40"
+          className="rounded-md border border-foreground/15 bg-background px-3 py-2 text-base text-foreground outline-none focus:border-foreground/40 md:text-sm"
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
@@ -28,7 +28,7 @@ export function RegisterForm() {
           autoComplete="new-password"
           minLength={8}
           required
-          className="rounded-md border border-foreground/15 bg-background px-3 py-2 text-foreground outline-none focus:border-foreground/40"
+          className="rounded-md border border-foreground/15 bg-background px-3 py-2 text-base text-foreground outline-none focus:border-foreground/40 md:text-sm"
         />
       </label>
       {state.error ? (

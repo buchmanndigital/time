@@ -305,7 +305,7 @@ function KanbanBoardReady({
                             }}
                             placeholder="Titel der Aufgabe…"
                             disabled={pending}
-                            className="w-full rounded-lg border border-foreground/15 bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-foreground/20"
+                            className="w-full rounded-lg border border-foreground/15 bg-background px-3 py-2 text-base text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-foreground/20 md:text-sm"
                             aria-label={`Neue Aufgabe in ${col.title}`}
                           />
                           <div className="flex flex-wrap gap-2">
