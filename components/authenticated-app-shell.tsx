@@ -24,7 +24,7 @@ export function AuthenticatedAppShell({
   }, [menuOpen]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+    <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-x-hidden md:flex-row">
       <header className="flex shrink-0 items-center justify-between border-b border-foreground/10 px-4 py-3 md:hidden">
         <span className="text-sm font-semibold tracking-[0.2em] text-foreground">TIME</span>
         <button
@@ -78,7 +78,7 @@ export function AuthenticatedAppShell({
       </aside>
 
       <main
-        className="flex min-h-0 flex-1 flex-col bg-background md:min-h-screen"
+        className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-x-hidden bg-background md:min-h-screen"
         aria-label="Arbeitsbereich"
       >
         {children}
