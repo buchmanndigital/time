@@ -47,3 +47,30 @@ export async function insertCustomer(
   if (!row) throw new Error("INSERT customers lieferte keine Zeile.");
   return row;
 }
+
+export async function updateCustomerForUser(
+  customerId: string,
+  userId: string,
+  name: string,
+): Promise<CustomerRow | null> {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  const sql = getSql();
+  const rows = (await sql`
+    UPDATE customers
+    SET name = ${trimmed}
+    WHERE id = ${customerId} AND user_id = ${userId}
+    RETURNING id, user_id, name, created_at
+  `) as CustomerRow[];
+  return rows[0] ?? null;
+}
+
+export async function deleteCustomerForUser(customerId: string, userId: string): Promise<boolean> {
+  const sql = getSql();
+  const rows = (await sql`
+    DELETE FROM customers
+    WHERE id = ${customerId} AND user_id = ${userId}
+    RETURNING id
+  `) as { id: string }[];
+  return rows.length > 0;
+}

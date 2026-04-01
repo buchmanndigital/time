@@ -36,6 +36,28 @@ export async function listTasksByUserId(userId: string): Promise<TaskRow[]> {
   return rows;
 }
 
+export async function findTaskByIdForUser(taskId: string, userId: string): Promise<TaskRow | null> {
+  const sql = getSql();
+  const rows = (await sql`
+    SELECT
+      t.id,
+      t.user_id,
+      t.title,
+      t.description,
+      t.status,
+      t.created_at,
+      t.starts_at,
+      t.duration_minutes,
+      t.customer_id,
+      c.name AS customer_name
+    FROM tasks t
+    LEFT JOIN customers c ON c.id = t.customer_id AND c.user_id = t.user_id
+    WHERE t.id = ${taskId} AND t.user_id = ${userId}
+    LIMIT 1
+  `) as TaskRow[];
+  return rows[0] ?? null;
+}
+
 export async function insertTask(
   id: string,
   userId: string,
@@ -60,6 +82,66 @@ export async function insertTask(
   const row = rows[0];
   if (!row) throw new Error("INSERT tasks lieferte keine Zeile.");
   return { ...row, customer_name: null };
+}
+
+export async function insertTaskFull(
+  id: string,
+  userId: string,
+  data: {
+    title: string;
+    status: KanbanStatus;
+    description: string | null;
+    customerId: string | null;
+    startsAt: Date | null;
+    durationMinutes: number | null;
+  },
+): Promise<TaskRow> {
+  const sql = getSql();
+  const rows = (await sql`
+    INSERT INTO tasks (
+      id,
+      user_id,
+      title,
+      status,
+      description,
+      customer_id,
+      starts_at,
+      duration_minutes
+    )
+    VALUES (
+      ${id},
+      ${userId},
+      ${data.title},
+      ${data.status},
+      ${data.description},
+      ${data.customerId},
+      ${data.startsAt},
+      ${data.durationMinutes}
+    )
+    RETURNING
+      id,
+      user_id,
+      title,
+      description,
+      status,
+      created_at,
+      starts_at,
+      duration_minutes,
+      customer_id
+  `) as Array<Omit<TaskRow, "customer_name">>;
+  const row = rows[0];
+  if (!row) throw new Error("INSERT tasks lieferte keine Zeile.");
+  return { ...row, customer_name: null };
+}
+
+export async function deleteTaskForUser(taskId: string, userId: string): Promise<boolean> {
+  const sql = getSql();
+  const rows = (await sql`
+    DELETE FROM tasks
+    WHERE id = ${taskId} AND user_id = ${userId}
+    RETURNING id
+  `) as { id: string }[];
+  return rows.length > 0;
 }
 
 export async function updateTaskStatusForUser(

@@ -1,0 +1,112 @@
+import { SchemaType, type FunctionDeclaration } from "@google/generative-ai";
+
+export const ASSISTANT_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
+  {
+    name: "list_customers",
+    description:
+      "Listet alle Kunden mit UUID (id) und Namen. Nutze ids für Zuordnung von Aufgaben oder zum Bearbeiten.",
+    parameters: { type: SchemaType.OBJECT, properties: {} },
+  },
+  {
+    name: "list_tasks",
+    description:
+      "Listet Kanban-/Kalender-Aufgaben mit id, Titel, Status, Termin (starts_at ISO oder null), Dauer, Kunde.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        filter_title: {
+          type: SchemaType.STRING,
+          description: "Optional: nur Aufgaben, deren Titel diesen Text enthalten (Groß/Klein egal).",
+        },
+      },
+    },
+  },
+  {
+    name: "create_customer",
+    description: "Legt einen neuen Kunden mit Anzeigenamen an.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        name: { type: SchemaType.STRING, description: "Anzeigename des Kunden" },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "update_customer",
+    description: "Benennt einen bestehenden Kunden um (id von list_customers).",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        customer_id: { type: SchemaType.STRING },
+        name: { type: SchemaType.STRING, description: "Neuer Name" },
+      },
+      required: ["customer_id", "name"],
+    },
+  },
+  {
+    name: "delete_customer",
+    description:
+      "Löscht einen Kunden. Zugeordnete Aufgaben behalten den Termin, Kunde wird von Aufgaben getrennt.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        customer_id: { type: SchemaType.STRING },
+      },
+      required: ["customer_id"],
+    },
+  },
+  {
+    name: "create_task",
+    description:
+      "Neue Aufgabe. Status: open | in_progress | paused | done (default open). Optional Kunde (customer_id), Beschreibung, Start (starts_at_iso), Dauer in Minuten.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        title: { type: SchemaType.STRING },
+        status: {
+          type: SchemaType.STRING,
+          description: "open | in_progress | paused | done",
+        },
+        description: { type: SchemaType.STRING },
+        customer_id: { type: SchemaType.STRING, description: "UUID oder leer" },
+        starts_at_iso: { type: SchemaType.STRING, description: "ISO 8601, z. B. 2026-04-15T14:00:00" },
+        duration_minutes: { type: SchemaType.INTEGER, description: "Optional, 0 oder leer = keine feste Dauer" },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "update_task",
+    description:
+      "Aufgabe ändern. Nur angegebene Felder setzen. clear_schedule=true entfernt Termin und Dauer.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        task_id: { type: SchemaType.STRING },
+        title: { type: SchemaType.STRING },
+        description: { type: SchemaType.STRING, description: "Leerstring löscht Beschreibung" },
+        status: { type: SchemaType.STRING, description: "open | in_progress | paused | done" },
+        customer_id: { type: SchemaType.STRING, description: "UUID oder leer zum Entfernen" },
+        starts_at_iso: { type: SchemaType.STRING, description: "ISO oder leer" },
+        duration_minutes: { type: SchemaType.INTEGER },
+        clear_schedule: {
+          type: SchemaType.BOOLEAN,
+          description: "true = Termin und Dauer entfernen",
+        },
+      },
+      required: ["task_id"],
+    },
+  },
+  {
+    name: "delete_task",
+    description: "Löscht eine Aufgabe dauerhaft.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        task_id: { type: SchemaType.STRING },
+      },
+      required: ["task_id"],
+    },
+  },
+];
