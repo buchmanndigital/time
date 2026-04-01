@@ -9,6 +9,7 @@ import {
   insertTask,
   updateTaskCustomerForUser,
   updateTaskDetailsForUser,
+  updateTaskScheduleForUser,
   updateTaskStatusForUser,
 } from "@/lib/data/tasks";
 
@@ -21,6 +22,8 @@ export type CreateTaskResult =
         description: string | null;
         status: string;
         created_at: string;
+        starts_at: string | null;
+        duration_minutes: number | null;
         customer_id: string | null;
         customer_name: string | null;
       };
@@ -57,6 +60,8 @@ export async function createKanbanTask(rawStatus: string, rawTitle: string): Pro
         description: task.description ?? null,
         status: task.status,
         created_at: task.created_at.toISOString(),
+        starts_at: task.starts_at ? task.starts_at.toISOString() : null,
+        duration_minutes: task.duration_minutes ?? null,
         customer_id: task.customer_id,
         customer_name: task.customer_name,
       },
@@ -103,6 +108,8 @@ export async function updateKanbanTaskDetails(
   rawTitle: string,
   rawDescription: string,
   rawCustomerId: string,
+  rawStartsAtIso: string,
+  rawDurationMinutes: string,
 ): Promise<UpdateTaskDetailsResult> {
   const session = await getSession();
   if (!session) {
@@ -131,16 +138,93 @@ export async function updateKanbanTaskDetails(
     }
   }
 
+  let startsAt: Date | null = null;
+  const iso = rawStartsAtIso.trim();
+  if (iso !== "") {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) {
+      return { ok: false, error: "Datum oder Uhrzeit ist ungültig." };
+    }
+    startsAt = d;
+  }
+
+  let durationMinutes: number | null = null;
+  const dm = rawDurationMinutes.trim();
+  if (dm !== "") {
+    const n = Number.parseInt(dm, 10);
+    if (!Number.isFinite(n) || n < 0 || n > 24 * 60 * 365) {
+      return { ok: false, error: "Dauer ungültig (max. 525600 Minuten)." };
+    }
+    durationMinutes = n === 0 ? null : n;
+  }
+
   try {
     const row = await updateTaskDetailsForUser(taskId, session.userId, {
       title,
       description,
       customerId,
+      startsAt,
+      durationMinutes,
     });
     if (!row) {
       return { ok: false, error: "Aufgabe nicht gefunden." };
     }
     revalidatePath("/board");
+    revalidatePath("/kalender");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Speichern fehlgeschlagen." };
+  }
+}
+
+export type UpdateTaskScheduleResult = { ok: true } | { ok: false; error: string };
+
+/** Nur Start und Dauer (Kalender Drag & Resize) */
+export async function updateKanbanTaskSchedule(
+  taskId: string,
+  rawStartsAtIso: string,
+  rawDurationMinutes: string,
+): Promise<UpdateTaskScheduleResult> {
+  const session = await getSession();
+  if (!session) {
+    return { ok: false, error: "Nicht angemeldet." };
+  }
+  if (!process.env.DATABASE_URL?.trim()) {
+    return { ok: false, error: "Datenbank nicht konfiguriert." };
+  }
+
+  const iso = rawStartsAtIso.trim();
+  if (!iso) {
+    return { ok: false, error: "Startzeit fehlt." };
+  }
+  const startsAt = new Date(iso);
+  if (Number.isNaN(startsAt.getTime())) {
+    return { ok: false, error: "Startzeit ungültig." };
+  }
+
+  let durationMinutes: number | null = null;
+  const dm = rawDurationMinutes.trim();
+  if (dm !== "") {
+    const n = Number.parseInt(dm, 10);
+    if (!Number.isFinite(n) || n < 0 || n > 24 * 60 * 365) {
+      return { ok: false, error: "Dauer ungültig." };
+    }
+    durationMinutes = n === 0 ? null : n;
+    if (durationMinutes != null && durationMinutes < 15) {
+      return { ok: false, error: "Dauer mindestens 15 Minuten." };
+    }
+  }
+
+  try {
+    const row = await updateTaskScheduleForUser(taskId, session.userId, {
+      startsAt,
+      durationMinutes,
+    });
+    if (!row) {
+      return { ok: false, error: "Aufgabe nicht gefunden." };
+    }
+    revalidatePath("/board");
+    revalidatePath("/kalender");
     return { ok: true };
   } catch {
     return { ok: false, error: "Speichern fehlgeschlagen." };

@@ -16,9 +16,10 @@ import {
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { createKanbanTask, updateKanbanTaskStatus } from "@/app/actions/tasks";
-import { KanbanTaskDetailModal, type KanbanCustomerOption } from "@/components/kanban-task-detail-modal";
+import { TaskDetailModal, type KanbanCustomerOption } from "@/components/task-detail-modal";
 import type { KanbanTaskDto } from "@/lib/kanban-task-dto";
 import { KANBAN_COLUMNS, type KanbanStatus } from "@/lib/kanban-columns";
+import { formatTaskScheduleLine } from "@/lib/task-schedule-format";
 import { cn } from "@/lib/utils/cn";
 
 export type { KanbanTaskDto };
@@ -55,6 +56,7 @@ function DraggableTaskCard({
   onOpenDetail: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
+  const scheduleLine = formatTaskScheduleLine(task.starts_at, task.duration_minutes);
 
   return (
     <li
@@ -81,6 +83,9 @@ function DraggableTaskCard({
         <span className="font-medium text-foreground">{task.title}</span>
         {task.customer_name ? (
           <span className="mt-0.5 block truncate text-xs text-foreground/50">{task.customer_name}</span>
+        ) : null}
+        {scheduleLine ? (
+          <span className="mt-0.5 block truncate text-xs text-foreground/45">{scheduleLine}</span>
         ) : null}
       </button>
     </li>
@@ -361,7 +366,7 @@ function KanbanBoardReady({
         ) : null}
       </DragOverlay>
 
-      <KanbanTaskDetailModal
+      <TaskDetailModal
         task={detailTask}
         customers={customers}
         open={detailTask !== null}

@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { AuthenticatedAppShell } from "@/components/authenticated-app-shell";
-import { KanbanBoard } from "@/components/kanban-board";
+import { TaskCalendar } from "@/components/task-calendar";
 import { getSession } from "@/lib/auth/session";
 import { listCustomersByUserId } from "@/lib/data/customers";
 import { listTasksByUserId } from "@/lib/data/tasks";
 
-export default async function BoardPage() {
+export default async function KalenderPage() {
   const session = await getSession();
   if (!session) {
     redirect("/login");
@@ -16,7 +16,7 @@ export default async function BoardPage() {
     listCustomersByUserId(session.userId),
   ]);
 
-  const initialTasks = rows.map((t) => ({
+  const tasks = rows.map((t) => ({
     id: t.id,
     title: t.title,
     description: t.description ?? null,
@@ -38,8 +38,8 @@ export default async function BoardPage() {
 
   return (
     <AuthenticatedAppShell userEmail={session.email}>
-      <div className="p-6 md:p-10">
-        <KanbanBoard initialTasks={initialTasks} customers={customers} />
+      <div className="p-5 md:p-10">
+        <TaskCalendar tasks={tasks} customers={customers} />
       </div>
     </AuthenticatedAppShell>
   );
