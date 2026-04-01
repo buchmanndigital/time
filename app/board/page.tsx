@@ -19,6 +19,7 @@ export default async function BoardPage() {
   const initialTasks = rows.map((t) => ({
     id: t.id,
     title: t.title,
+    description: t.description ?? null,
     status: t.status,
     created_at:
       t.created_at instanceof Date ? t.created_at.toISOString() : String(t.created_at),

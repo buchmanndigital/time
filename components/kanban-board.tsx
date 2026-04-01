@@ -366,17 +366,9 @@ function KanbanBoardReady({
         customers={customers}
         open={detailTask !== null}
         onClose={() => setDetailTask(null)}
-        onCustomerUpdated={(taskId, customerId, customerName) => {
-          setTasks((prev) =>
-            prev.map((t) =>
-              t.id === taskId ? { ...t, customer_id: customerId, customer_name: customerName } : t,
-            ),
-          );
-          setDetailTask((prev) =>
-            prev?.id === taskId
-              ? { ...prev, customer_id: customerId, customer_name: customerName }
-              : prev,
-          );
+        onSaved={(taskId, patch) => {
+          setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...patch } : t)));
+          setDetailTask((prev) => (prev?.id === taskId ? { ...prev, ...patch } : prev));
         }}
       />
     </DndContext>
