@@ -1,10 +1,5 @@
-import { TimeTitle } from "@/components/time-title";
-import { ViewportCenter } from "@/components/viewport-center";
+import { HomeContent } from "@/components/home-content";
 
-export default function Home() {
-  return (
-    <ViewportCenter>
-      <TimeTitle />
-    </ViewportCenter>
-  );
+export default async function Home() {
+  return <HomeContent />;
 }
