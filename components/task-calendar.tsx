@@ -843,6 +843,11 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
           setTasks((prev) => prev.map((item) => (item.id === taskId ? { ...item, ...patch } : item)));
           setDetailTask((prev) => (prev?.id === taskId ? { ...prev, ...patch } : prev));
         }}
+        onDeleted={(taskId) => {
+          setTasks((prev) => prev.filter((t) => t.id !== taskId));
+          setDetailTask((prev) => (prev?.id === taskId ? null : prev));
+          setSchedulePreview((p) => (p?.taskId === taskId ? null : p));
+        }}
       />
     </div>
   );

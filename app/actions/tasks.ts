@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth/session";
 import { isKanbanStatus } from "@/lib/kanban-columns";
 import { findCustomerByIdForUser } from "@/lib/data/customers";
 import {
+  deleteTaskForUser,
   insertTask,
   updateTaskCustomerForUser,
   updateTaskDetailsForUser,
@@ -262,5 +263,30 @@ export async function updateKanbanTaskCustomer(
     return { ok: true };
   } catch {
     return { ok: false, error: "Speichern fehlgeschlagen." };
+  }
+}
+
+export type DeleteTaskResult = { ok: true } | { ok: false; error: string };
+
+export async function deleteKanbanTask(taskId: string): Promise<DeleteTaskResult> {
+  const session = await getSession();
+  if (!session) {
+    return { ok: false, error: "Nicht angemeldet." };
+  }
+  if (!process.env.DATABASE_URL?.trim()) {
+    return { ok: false, error: "Datenbank nicht konfiguriert." };
+  }
+
+  try {
+    const ok = await deleteTaskForUser(taskId, session.userId);
+    if (!ok) {
+      return { ok: false, error: "Aufgabe nicht gefunden." };
+    }
+    revalidatePath("/board");
+    revalidatePath("/kalender");
+    revalidatePath("/");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Löschen fehlgeschlagen." };
   }
 }

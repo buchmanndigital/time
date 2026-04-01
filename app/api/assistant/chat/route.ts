@@ -70,15 +70,20 @@ export async function POST(req: Request) {
     timeStyle: "short",
   });
 
+  /** ChatSession reicht systemInstruction unformatiert an die REST-API — String wäre ungültig (400). */
+  const systemInstruction: Content = {
+    parts: [{ text: buildAssistantSystemInstruction(nowStr) }],
+  } as Content;
+
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelName = process.env.GEMINI_MODEL?.trim() || "gemini-2.0-flash";
+    const modelName = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({ model: modelName });
 
     const chat = model.startChat({
       history,
       tools: [{ functionDeclarations: ASSISTANT_FUNCTION_DECLARATIONS }],
-      systemInstruction: buildAssistantSystemInstruction(nowStr),
+      systemInstruction,
     });
 
     let result = await chat.sendMessage(last.content.trim() || " ");

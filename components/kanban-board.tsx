@@ -375,6 +375,10 @@ function KanbanBoardReady({
           setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...patch } : t)));
           setDetailTask((prev) => (prev?.id === taskId ? { ...prev, ...patch } : prev));
         }}
+        onDeleted={(taskId) => {
+          setTasks((prev) => prev.filter((t) => t.id !== taskId));
+          setDetailTask((prev) => (prev?.id === taskId ? null : prev));
+        }}
       />
     </DndContext>
   );

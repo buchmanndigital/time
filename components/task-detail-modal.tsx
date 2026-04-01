@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { updateKanbanTaskDetails } from "@/app/actions/tasks";
+import { deleteKanbanTask, updateKanbanTaskDetails } from "@/app/actions/tasks";
 import type { KanbanTaskDto } from "@/lib/kanban-task-dto";
 import { KANBAN_COLUMNS } from "@/lib/kanban-columns";
 import { utcIsoToLocalDate, utcIsoToLocalTime } from "@/lib/task-schedule-format";
@@ -28,6 +28,8 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onSaved: (taskId: string, patch: TaskDetailSavedPatch) => void;
+  /** Wird nach erfolgreichem Löschen aufgerufen (z. B. Eintrag aus Liste entfernen). */
+  onDeleted?: (taskId: string) => void;
 };
 
 function localTodayYmd(): string {
@@ -82,7 +84,7 @@ function openNativePicker(el: HTMLInputElement | null) {
 /**
  * Aufgabe bearbeiten – gleicher Dialog überall (Board, Kalender, …).
  */
-export function TaskDetailModal({ task, customers, open, onClose, onSaved }: Props) {
+export function TaskDetailModal({ task, customers, open, onClose, onSaved, onDeleted }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [customerId, setCustomerId] = useState("");
@@ -221,6 +223,29 @@ export function TaskDetailModal({ task, customers, open, onClose, onSaved }: Pro
           starts_at: scheduleDate.trim() === "" ? null : rawStarts,
           duration_minutes,
         });
+        onClose();
+      } else {
+        setError(res.error);
+      }
+    });
+  }
+
+  function confirmDelete() {
+    if (!task) return;
+    const taskId = task.id;
+    const label = task.title.trim() || "diese Aufgabe";
+    if (
+      !window.confirm(
+        `Aufgabe „${label}“ wirklich unwiderruflich löschen? Sie verschwindet vom Board und aus dem Kalender.`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await deleteKanbanTask(taskId);
+      if (res.ok) {
+        onDeleted?.(taskId);
         onClose();
       } else {
         setError(res.error);
@@ -484,22 +509,32 @@ export function TaskDetailModal({ task, customers, open, onClose, onSaved }: Pro
           ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-foreground/10 bg-foreground/[0.02] px-8 py-5 sm:px-10">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl px-5 py-2.5 text-sm font-medium text-foreground/80 hover:bg-foreground/10"
-          >
-            Abbrechen
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-foreground/10 bg-foreground/[0.02] px-8 py-5 sm:px-10">
           <button
             type="button"
             disabled={pending}
-            onClick={save}
-            className="rounded-xl bg-foreground px-6 py-2.5 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50"
+            onClick={confirmDelete}
+            className="rounded-xl border border-red-500/40 px-5 py-2.5 text-sm font-medium text-red-700 hover:bg-red-500/10 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-500/15"
           >
-            {pending ? "Speichern…" : "Speichern"}
+            Löschen
           </button>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl px-5 py-2.5 text-sm font-medium text-foreground/80 hover:bg-foreground/10"
+            >
+              Abbrechen
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={save}
+              className="rounded-xl bg-foreground px-6 py-2.5 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50"
+            >
+              {pending ? "Speichern…" : "Speichern"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
