@@ -2,6 +2,33 @@ import { SchemaType, type FunctionDeclaration } from "@google/generative-ai";
 
 export const ASSISTANT_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   {
+    name: "get_customer_details",
+    description:
+      "Liefert alle in TIME gespeicherten Infos zu einem Kunden: Name, angelegt am, alle zugeordneten Aufgaben (Titel, Status, Beschreibung, Termin, Dauer). Zuerst nutzen bei „was wissen wir über …“, „Übersicht Kunde …“. customer_id von list_customers.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        customer_id: { type: SchemaType.STRING, description: "UUID des Kunden" },
+      },
+      required: ["customer_id"],
+    },
+  },
+  {
+    name: "web_research",
+    description:
+      "Öffentliche Websuche zu Firma, Person oder Thema – ergänzt TIME-Daten (Branche, Profil, aktuelle Infos). Präzise Suchanfrage (z. B. Firmenname + „Unternehmen Deutschland“). Antwort des Nutzers mit Quellen (Titel oder Domain der Treffer) untermauern. Erfordert TAVILY_API_KEY auf dem Server.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        query: {
+          type: SchemaType.STRING,
+          description: "Suchbegriff(e) / Frage für die Websuche (deutsch möglich)",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "list_customers",
     description:
       "Listet alle Kunden mit UUID (id) und Namen. Nutze ids für Zuordnung von Aufgaben oder zum Bearbeiten.",

@@ -14,6 +14,31 @@ export type TaskRow = {
   customer_name: string | null;
 };
 
+export async function listTasksByCustomerIdForUser(
+  customerId: string,
+  userId: string,
+): Promise<TaskRow[]> {
+  const sql = getSql();
+  const rows = (await sql`
+    SELECT
+      t.id,
+      t.user_id,
+      t.title,
+      t.description,
+      t.status,
+      t.created_at,
+      t.starts_at,
+      t.duration_minutes,
+      t.customer_id,
+      c.name AS customer_name
+    FROM tasks t
+    LEFT JOIN customers c ON c.id = t.customer_id AND c.user_id = t.user_id
+    WHERE t.user_id = ${userId} AND t.customer_id = ${customerId}
+    ORDER BY t.created_at ASC
+  `) as TaskRow[];
+  return rows;
+}
+
 export async function listTasksByUserId(userId: string): Promise<TaskRow[]> {
   const sql = getSql();
   const rows = (await sql`

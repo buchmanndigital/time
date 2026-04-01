@@ -9,10 +9,12 @@ import {
   updateCustomerForUser,
 } from "@/lib/data/customers";
 import { parseStartsAtInputToUtc } from "@/lib/parse-starts-at-utc";
+import { tavilySearch } from "@/lib/assistant/tavily-search";
 import {
   deleteTaskForUser,
   findTaskByIdForUser,
   insertTaskFull,
+  listTasksByCustomerIdForUser,
   listTasksByUserId,
   updateTaskDetailsForUser,
   updateTaskStatusForUser,
@@ -45,6 +47,53 @@ export async function executeAssistantTool(
 
   try {
     switch (name) {
+      case "get_customer_details": {
+        const customerId = str(rawArgs.customer_id).trim();
+        if (!customerId) {
+          return { ok: false, error: "customer_id fehlt." };
+        }
+        const customer = await findCustomerByIdForUser(customerId, userId);
+        if (!customer) {
+          return { ok: false, error: "Kunde nicht gefunden." };
+        }
+        const taskRows = await listTasksByCustomerIdForUser(customerId, userId);
+        return {
+          ok: true,
+          customer: {
+            id: customer.id,
+            name: customer.name,
+            created_at: customer.created_at.toISOString(),
+          },
+          tasks: taskRows.map((t) => ({
+            id: t.id,
+            title: t.title,
+            status: t.status,
+            description: t.description,
+            starts_at: t.starts_at ? t.starts_at.toISOString() : null,
+            duration_minutes: t.duration_minutes,
+          })),
+          task_count: taskRows.length,
+        };
+      }
+
+      case "web_research": {
+        const q = str(rawArgs.query).trim();
+        const out = await tavilySearch(q);
+        if (!out.ok) {
+          return { ok: false, error: out.error };
+        }
+        return {
+          ok: true,
+          query: q,
+          summary: out.answer,
+          sources: out.results.map((r) => ({
+            title: r.title,
+            url: r.url,
+            excerpt: r.content,
+          })),
+        };
+      }
+
       case "list_customers": {
         const rows = await listCustomersByUserId(userId);
         return {
