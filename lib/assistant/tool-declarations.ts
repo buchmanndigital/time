@@ -70,7 +70,11 @@ export const ASSISTANT_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
         },
         description: { type: SchemaType.STRING },
         customer_id: { type: SchemaType.STRING, description: "UUID oder leer" },
-        starts_at_iso: { type: SchemaType.STRING, description: "ISO 8601, z. B. 2026-04-15T14:00:00" },
+        starts_at_iso: {
+          type: SchemaType.STRING,
+          description:
+            "Datum/Uhrzeit, z. B. 2026-04-15T14:00:00 — ohne Z/Offset = Uhrzeit Europe/Berlin (DE). Optional …Z oder ±HH:MM",
+        },
         duration_minutes: { type: SchemaType.INTEGER, description: "Optional, 0 oder leer = keine feste Dauer" },
       },
       required: ["title"],
@@ -88,7 +92,10 @@ export const ASSISTANT_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
         description: { type: SchemaType.STRING, description: "Leerstring löscht Beschreibung" },
         status: { type: SchemaType.STRING, description: "open | in_progress | paused | done" },
         customer_id: { type: SchemaType.STRING, description: "UUID oder leer zum Entfernen" },
-        starts_at_iso: { type: SchemaType.STRING, description: "ISO oder leer" },
+        starts_at_iso: {
+          type: SchemaType.STRING,
+          description: "ISO; ohne Z/Offset = Berlin-Ortszeit; leer optional",
+        },
         duration_minutes: { type: SchemaType.INTEGER },
         clear_schedule: {
           type: SchemaType.BOOLEAN,

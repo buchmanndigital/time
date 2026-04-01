@@ -8,6 +8,7 @@ import {
   listCustomersByUserId,
   updateCustomerForUser,
 } from "@/lib/data/customers";
+import { parseStartsAtInputToUtc } from "@/lib/parse-starts-at-utc";
 import {
   deleteTaskForUser,
   findTaskByIdForUser,
@@ -138,8 +139,8 @@ export async function executeAssistantTool(
         let startsAt: Date | null = null;
         const iso = str(rawArgs.starts_at_iso).trim();
         if (iso) {
-          const d = new Date(iso);
-          if (Number.isNaN(d.getTime())) {
+          const d = parseStartsAtInputToUtc(iso);
+          if (!d) {
             return { ok: false, error: "starts_at_iso ungültig." };
           }
           startsAt = d;
@@ -245,8 +246,8 @@ export async function executeAssistantTool(
             if (!iso) {
               startsAt = null;
             } else {
-              const d = new Date(iso);
-              if (Number.isNaN(d.getTime())) {
+              const d = parseStartsAtInputToUtc(iso);
+              if (!d) {
                 return { ok: false, error: "starts_at_iso ungültig." };
               }
               startsAt = d;

@@ -3,6 +3,7 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth/session";
+import { parseStartsAtInputToUtc } from "@/lib/parse-starts-at-utc";
 import { isKanbanStatus } from "@/lib/kanban-columns";
 import { findCustomerByIdForUser } from "@/lib/data/customers";
 import {
@@ -142,8 +143,8 @@ export async function updateKanbanTaskDetails(
   let startsAt: Date | null = null;
   const iso = rawStartsAtIso.trim();
   if (iso !== "") {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) {
+    const d = parseStartsAtInputToUtc(iso);
+    if (!d) {
       return { ok: false, error: "Datum oder Uhrzeit ist ungültig." };
     }
     startsAt = d;
@@ -198,8 +199,8 @@ export async function updateKanbanTaskSchedule(
   if (!iso) {
     return { ok: false, error: "Startzeit fehlt." };
   }
-  const startsAt = new Date(iso);
-  if (Number.isNaN(startsAt.getTime())) {
+  const startsAt = parseStartsAtInputToUtc(iso);
+  if (!startsAt) {
     return { ok: false, error: "Startzeit ungültig." };
   }
 
