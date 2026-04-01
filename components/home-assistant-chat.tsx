@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { isTrustedBrowserUseLiveUrl } from "@/lib/assistant/browser-use-live-url";
 import { cn } from "@/lib/utils/cn";
 
 type ChatMessage = { id: string; role: "user" | "assistant"; content: string };
@@ -11,6 +14,9 @@ export function HomeAssistantChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  /** Länger laufende Tool-Aktion (z. B. Browser Use Web-Recherche), live per Stream */
+  const [toolStatus, setToolStatus] = useState<string | null>(null);
+  const [browserLiveUrl, setBrowserLiveUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -21,7 +27,7 @@ export function HomeAssistantChat() {
     if (hasMessages) {
       endRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, hasMessages]);
+  }, [messages, hasMessages, browserLiveUrl, toolStatus, loading]);
 
   const send = useCallback(async () => {
     const text = input.trim();
@@ -36,6 +42,8 @@ export function HomeAssistantChat() {
     setMessages(next);
     setInput("");
     setLoading(true);
+    setToolStatus(null);
+    setBrowserLiveUrl(null);
     setError(null);
 
     try {
@@ -44,26 +52,109 @@ export function HomeAssistantChat() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: next.map((m) => ({ role: m.role, content: m.content })),
+          stream: true,
         }),
       });
-      const data = (await res.json()) as { reply?: string; error?: string };
+
       if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
         setError(data.error ?? "Anfrage fehlgeschlagen.");
         return;
       }
-      if (!data.reply?.length) {
+
+      const reader = res.body?.getReader();
+      if (!reader) {
+        setError("Antwort-Stream nicht verfügbar.");
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      const streamOutcome: { reply: string | null; error: string | null } = {
+        reply: null,
+        error: null,
+      };
+
+      const handleEvent = (o: Record<string, unknown>) => {
+        if (o.type === "browser_live") {
+          if (o.url === null) {
+            setBrowserLiveUrl(null);
+            return;
+          }
+          if (typeof o.url === "string" && isTrustedBrowserUseLiveUrl(o.url)) {
+            setBrowserLiveUrl(o.url);
+          }
+          return;
+        }
+        if (o.type === "tool" && o.phase === "start" && typeof o.display === "string" && o.display) {
+          setToolStatus(o.display);
+          return;
+        }
+        if (o.type === "tool" && o.phase === "end") {
+          const toolName = typeof o.name === "string" ? o.name : "";
+          if (toolName === "web_research") {
+            setToolStatus("Browser Use: Recherche abgeschlossen, Antwort wird erstellt …");
+          } else {
+            setToolStatus(null);
+          }
+          return;
+        }
+        if (o.type === "done" && typeof o.reply === "string") {
+          streamOutcome.reply = o.reply;
+          return;
+        }
+        if (o.type === "error" && typeof o.error === "string") {
+          streamOutcome.error = o.error;
+        }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buffer.indexOf("\n")) >= 0) {
+          const line = buffer.slice(0, nl).trim();
+          buffer = buffer.slice(nl + 1);
+          if (!line) continue;
+          try {
+            const o = JSON.parse(line) as Record<string, unknown>;
+            handleEvent(o);
+          } catch {
+            /* Zeile kein JSON */
+          }
+        }
+      }
+
+      const tail = buffer.trim();
+      if (tail) {
+        try {
+          handleEvent(JSON.parse(tail) as Record<string, unknown>);
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if (streamOutcome.error) {
+        setError(streamOutcome.error);
+        return;
+      }
+      const replyText = streamOutcome.reply;
+      if (replyText == null || replyText.length === 0) {
         setError("Leere Antwort.");
         return;
       }
       setMessages((prev) => [
         ...prev,
-        { id: crypto.randomUUID(), role: "assistant", content: data.reply! },
+        { id: crypto.randomUUID(), role: "assistant", content: replyText },
       ]);
       router.refresh();
     } catch {
       setError("Netzwerkfehler.");
     } finally {
       setLoading(false);
+      setToolStatus(null);
+      setBrowserLiveUrl(null);
       textareaRef.current?.focus();
     }
   }, [input, loading, messages, router]);
@@ -116,6 +207,11 @@ export function HomeAssistantChat() {
       {!hasMessages ? (
         <div className="flex flex-1 flex-col items-center justify-center px-4 pb-24 pt-8 md:px-8">
           {composer}
+          {loading && toolStatus ? (
+            <BrowserUseLivePanel statusText={toolStatus} liveUrl={browserLiveUrl} className="mt-6 max-w-2xl" />
+          ) : loading ? (
+            <p className="mt-6 text-center text-sm text-foreground/45">Denkt nach …</p>
+          ) : null}
         </div>
       ) : (
         <>
@@ -143,9 +239,13 @@ export function HomeAssistantChat() {
               ))}
               {loading ? (
                 <div className="flex justify-start">
-                  <div className="rounded-2xl border border-foreground/10 bg-foreground/[0.04] px-4 py-3 text-sm text-foreground/50">
-                    Denkt nach …
-                  </div>
+                  {toolStatus ? (
+                    <BrowserUseLivePanel statusText={toolStatus} liveUrl={browserLiveUrl} />
+                  ) : (
+                    <div className="rounded-2xl border border-foreground/10 bg-foreground/[0.04] px-4 py-3 text-sm text-foreground/50">
+                      Denkt nach …
+                    </div>
+                  )}
                 </div>
               ) : null}
               <div ref={endRef} />
@@ -182,16 +282,72 @@ export function HomeAssistantChat() {
   );
 }
 
-function MessageBody({ text, isUser }: { text: string; isUser: boolean }) {
-  const lines = text.split("\n");
+function BrowserUseLivePanel({
+  statusText,
+  liveUrl,
+  className,
+}: {
+  statusText: string;
+  liveUrl: string | null;
+  className?: string;
+}) {
   return (
-    <div className={cn("whitespace-pre-wrap break-words", isUser && "[&_a]:text-white/95")}>
-      {lines.map((line, i) => (
-        <span key={i}>
-          {line}
-          {i < lines.length - 1 ? "\n" : null}
-        </span>
-      ))}
+    <div className={cn("w-full max-w-[min(100%,42rem)] space-y-3", className)}>
+      <div
+        className="rounded-2xl border border-teal-500/30 bg-teal-500/[0.08] px-4 py-3 text-sm dark:bg-teal-400/[0.07]"
+        role="status"
+        aria-live="polite"
+      >
+        <div className="flex items-start gap-3">
+          <span className="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-teal-600 dark:bg-teal-500" />
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold tracking-wide text-teal-800 dark:text-teal-200">Browser Use</p>
+            <p className="mt-1 text-foreground/75">{statusText}</p>
+          </div>
+        </div>
+      </div>
+      {liveUrl ? (
+        <div className="overflow-hidden rounded-2xl border border-teal-500/25 bg-black/[0.35] shadow-lg dark:bg-black/50">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-teal-500/20 bg-teal-950/35 px-3 py-2 text-xs text-teal-100/90 dark:bg-teal-950/50">
+            <span className="font-medium">Live-Ansicht (Cloud-Browser)</span>
+            <a
+              href={liveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 text-teal-200 underline decoration-teal-400/40 underline-offset-2 hover:text-white"
+            >
+              In neuem Tab öffnen
+            </a>
+          </div>
+          <iframe
+            src={liveUrl}
+            title="Browser Use – Live-Session"
+            className="aspect-video w-full min-h-[200px] bg-neutral-950 md:min-h-[min(50vh,420px)]"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MessageBody({ text, isUser }: { text: string; isUser: boolean }) {
+  return (
+    <div
+      className={cn(
+        "break-words leading-relaxed [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-foreground/25 [&_blockquote]:pl-3 [&_blockquote]:text-foreground/80",
+        "[&_code]:rounded [&_code]:bg-foreground/10 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[0.9em]",
+        "[&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold",
+        "[&_li]:my-0.5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5",
+        "[&_p]:mb-2 [&_p:last-child]:mb-0",
+        "[&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-foreground/10 [&_pre]:p-3",
+        "[&_strong]:font-semibold",
+        "[&_a]:underline [&_a]:underline-offset-2",
+        isUser && "[&_a]:text-white/95 [&_code]:bg-white/15 [&_strong]:text-white",
+        !isUser && "[&_a]:text-teal-700 dark:[&_a]:text-teal-400",
+      )}
+    >
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
     </div>
   );
 }
