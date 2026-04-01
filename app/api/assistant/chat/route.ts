@@ -76,7 +76,6 @@ export async function POST(req: Request) {
           onToolProgress: (e) => {
             send({ type: "tool", phase: e.phase, name: e.name, display: e.display });
           },
-          onStream: send,
         });
 
         if (result.ok) {

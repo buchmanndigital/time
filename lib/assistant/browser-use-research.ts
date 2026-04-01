@@ -1,5 +1,4 @@
-import { BrowserUse, BrowserUseError, type SessionRun } from "browser-use-sdk/v3";
-import { isTrustedBrowserUseLiveUrl } from "@/lib/assistant/browser-use-live-url";
+import { BrowserUse, BrowserUseError } from "browser-use-sdk/v3";
 
 const MAX_QUERY_LEN = 500;
 
@@ -48,12 +47,8 @@ export type BrowserResearchFailure = { ok: false; error: string };
 
 /**
  * Web-Recherche über Browser Use (Cloud-Agent mit echtem Browser).
- * Optional: Live-Preview-URL solange die Session läuft (für eingebettete Ansicht im Chat).
  */
-export async function browserUseResearch(
-  query: string,
-  onLiveSessionUrl?: (url: string | null) => void,
-): Promise<BrowserResearchSuccess | BrowserResearchFailure> {
+export async function browserUseResearch(query: string): Promise<BrowserResearchSuccess | BrowserResearchFailure> {
   const apiKey = process.env.BROWSER_USE_API_KEY?.trim();
   if (!apiKey) {
     return {
@@ -76,63 +71,17 @@ export async function browserUseResearch(
     `Auftrag: ${q}`,
   ].join("\n");
 
-  const emitLive = (url: string | null) => {
-    if (!onLiveSessionUrl) return;
-    if (url !== null && !isTrustedBrowserUseLiveUrl(url)) return;
-    onLiveSessionUrl(url);
-  };
-
   try {
     const client = new BrowserUse({ apiKey });
-    const run = client.run(task, {
+    const result = await client.run(task, {
       model: agentModel(),
       proxyCountryCode: "de",
       timeout: taskTimeoutMs(),
       interval: DEFAULT_POLL_MS,
       keepAlive: false,
-    }) as SessionRun<string>;
+    });
 
-    let lastUrl: string | null = null;
-    const syncLive = async () => {
-      const sid = run.sessionId;
-      if (!sid) return;
-      try {
-        const s = await client.sessions.get(sid);
-        const next = s.liveUrl?.trim() || null;
-        const trusted = next && isTrustedBrowserUseLiveUrl(next) ? next : null;
-        if (trusted !== lastUrl) {
-          lastUrl = trusted;
-          emitLive(trusted);
-        }
-      } catch {
-        /* Session kann kurz nicht erreichbar sein */
-      }
-    };
-
-    const pollMs = 1200;
-    const poll = setInterval(() => {
-      void syncLive();
-    }, pollMs);
-
-    try {
-      for await (const _msg of run) {
-        await syncLive();
-      }
-    } finally {
-      clearInterval(poll);
-      lastUrl = null;
-      emitLive(null);
-    }
-
-    const sessionResult = run.result;
-    if (!sessionResult) {
-      return {
-        ok: false,
-        error: "Die Browser-Recherche konnte nicht abgeschlossen werden.",
-      };
-    }
-
-    const rawOutput = sessionResult.output;
+    const rawOutput = result.output;
     const text =
       rawOutput == null
         ? ""
@@ -155,7 +104,6 @@ export async function browserUseResearch(
       results: fromText.map((r) => ({ ...r, content: r.excerpt })),
     };
   } catch (e) {
-    emitLive(null);
     if (e instanceof BrowserUseError) {
       const detail =
         typeof e.detail === "string"

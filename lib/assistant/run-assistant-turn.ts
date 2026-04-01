@@ -44,11 +44,8 @@ export async function runAssistantTurn(params: {
   userId: string;
   nowBerlinLocale: string;
   onToolProgress?: (e: ToolProgressEvent) => void;
-  /** Nur bei Streaming: Live-Browser-URL von Browser Use */
-  onStream?: (event: Record<string, unknown>) => void;
 }): Promise<AssistantTurnOk | AssistantTurnErr> {
-  const { geminiApiKey, geminiModel, messages, userId, nowBerlinLocale, onToolProgress, onStream } =
-    params;
+  const { geminiApiKey, geminiModel, messages, userId, nowBerlinLocale, onToolProgress } = params;
 
   const last = messages[messages.length - 1];
   if (!last || last.role !== "user" || typeof last.content !== "string") {
@@ -92,12 +89,7 @@ export async function runAssistantTurn(params: {
           if (startEv) onToolProgress?.(startEv);
           try {
             const args = (call.args ?? {}) as Record<string, unknown>;
-            const out = await executeAssistantTool(name, args, userId, {
-              onBrowserLiveUrl:
-                name === "web_research" && onStream
-                  ? (url) => onStream({ type: "browser_live", url })
-                  : undefined,
-            });
+            const out = await executeAssistantTool(name, args, userId);
             responseParts.push({
               functionResponse: { name: name || "unknown", response: out as object },
             });

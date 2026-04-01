@@ -36,16 +36,10 @@ function str(v: unknown): string {
   return String(v);
 }
 
-export type AssistantToolHooks = {
-  /** Live-Ansicht der Browser-Use-Cloud-Session (nur web_research, nur https *.browser-use.com). */
-  onBrowserLiveUrl?: (url: string | null) => void;
-};
-
 export async function executeAssistantTool(
   name: string,
   rawArgs: Record<string, unknown>,
   userId: string,
-  hooks?: AssistantToolHooks,
 ): Promise<object> {
   if (!process.env.DATABASE_URL?.trim()) {
     return { ok: false, error: "Datenbank nicht konfiguriert." };
@@ -84,7 +78,7 @@ export async function executeAssistantTool(
 
       case "web_research": {
         const q = str(rawArgs.query).trim();
-        const out = await browserUseResearch(q, hooks?.onBrowserLiveUrl);
+        const out = await browserUseResearch(q);
         if (!out.ok) {
           return { ok: false, error: out.error };
         }

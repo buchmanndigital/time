@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { isTrustedBrowserUseLiveUrl } from "@/lib/assistant/browser-use-live-url";
 import { cn } from "@/lib/utils/cn";
 
 type ChatMessage = { id: string; role: "user" | "assistant"; content: string };
@@ -16,7 +15,6 @@ export function HomeAssistantChat() {
   const [loading, setLoading] = useState(false);
   /** Länger laufende Tool-Aktion (z. B. Browser Use Web-Recherche), live per Stream */
   const [toolStatus, setToolStatus] = useState<string | null>(null);
-  const [browserLiveUrl, setBrowserLiveUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -27,7 +25,7 @@ export function HomeAssistantChat() {
     if (hasMessages) {
       endRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, hasMessages, browserLiveUrl, toolStatus, loading]);
+  }, [messages, hasMessages, toolStatus, loading]);
 
   const send = useCallback(async () => {
     const text = input.trim();
@@ -43,7 +41,6 @@ export function HomeAssistantChat() {
     setInput("");
     setLoading(true);
     setToolStatus(null);
-    setBrowserLiveUrl(null);
     setError(null);
 
     try {
@@ -76,16 +73,6 @@ export function HomeAssistantChat() {
       };
 
       const handleEvent = (o: Record<string, unknown>) => {
-        if (o.type === "browser_live") {
-          if (o.url === null) {
-            setBrowserLiveUrl(null);
-            return;
-          }
-          if (typeof o.url === "string" && isTrustedBrowserUseLiveUrl(o.url)) {
-            setBrowserLiveUrl(o.url);
-          }
-          return;
-        }
         if (o.type === "tool" && o.phase === "start" && typeof o.display === "string" && o.display) {
           setToolStatus(o.display);
           return;
@@ -154,7 +141,6 @@ export function HomeAssistantChat() {
     } finally {
       setLoading(false);
       setToolStatus(null);
-      setBrowserLiveUrl(null);
       textareaRef.current?.focus();
     }
   }, [input, loading, messages, router]);
@@ -208,7 +194,7 @@ export function HomeAssistantChat() {
         <div className="flex flex-1 flex-col items-center justify-center px-4 pb-24 pt-8 md:px-8">
           {composer}
           {loading && toolStatus ? (
-            <BrowserUseLivePanel statusText={toolStatus} liveUrl={browserLiveUrl} className="mt-6 max-w-2xl" />
+            <WebToolProgressBanner text={toolStatus} className="mt-6 max-w-2xl" />
           ) : loading ? (
             <p className="mt-6 text-center text-sm text-foreground/45">Denkt nach …</p>
           ) : null}
@@ -240,7 +226,7 @@ export function HomeAssistantChat() {
               {loading ? (
                 <div className="flex justify-start">
                   {toolStatus ? (
-                    <BrowserUseLivePanel statusText={toolStatus} liveUrl={browserLiveUrl} />
+                    <WebToolProgressBanner text={toolStatus} />
                   ) : (
                     <div className="rounded-2xl border border-foreground/10 bg-foreground/[0.04] px-4 py-3 text-sm text-foreground/50">
                       Denkt nach …
@@ -282,51 +268,23 @@ export function HomeAssistantChat() {
   );
 }
 
-function BrowserUseLivePanel({
-  statusText,
-  liveUrl,
-  className,
-}: {
-  statusText: string;
-  liveUrl: string | null;
-  className?: string;
-}) {
+function WebToolProgressBanner({ text, className }: { text: string; className?: string }) {
   return (
-    <div className={cn("w-full max-w-[min(100%,42rem)] space-y-3", className)}>
-      <div
-        className="rounded-2xl border border-teal-500/30 bg-teal-500/[0.08] px-4 py-3 text-sm dark:bg-teal-400/[0.07]"
-        role="status"
-        aria-live="polite"
-      >
-        <div className="flex items-start gap-3">
-          <span className="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-teal-600 dark:bg-teal-500" />
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold tracking-wide text-teal-800 dark:text-teal-200">Browser Use</p>
-            <p className="mt-1 text-foreground/75">{statusText}</p>
-          </div>
+    <div
+      className={cn(
+        "w-full max-w-[min(100%,42rem)] rounded-2xl border border-teal-500/30 bg-teal-500/[0.08] px-4 py-3 text-sm dark:bg-teal-400/[0.07]",
+        className,
+      )}
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex items-start gap-3">
+        <span className="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-teal-600 dark:bg-teal-500" />
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold tracking-wide text-teal-800 dark:text-teal-200">Browser Use</p>
+          <p className="mt-1 text-foreground/75">{text}</p>
         </div>
       </div>
-      {liveUrl ? (
-        <div className="overflow-hidden rounded-2xl border border-teal-500/25 bg-black/[0.35] shadow-lg dark:bg-black/50">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-teal-500/20 bg-teal-950/35 px-3 py-2 text-xs text-teal-100/90 dark:bg-teal-950/50">
-            <span className="font-medium">Live-Ansicht (Cloud-Browser)</span>
-            <a
-              href={liveUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 text-teal-200 underline decoration-teal-400/40 underline-offset-2 hover:text-white"
-            >
-              In neuem Tab öffnen
-            </a>
-          </div>
-          <iframe
-            src={liveUrl}
-            title="Browser Use – Live-Session"
-            className="aspect-video w-full min-h-[200px] bg-neutral-950 md:min-h-[min(50vh,420px)]"
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-          />
-        </div>
-      ) : null}
     </div>
   );
 }
