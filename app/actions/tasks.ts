@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth/session";
 import { parseStartsAtInputToUtc } from "@/lib/parse-starts-at-utc";
 import { isKanbanStatus } from "@/lib/kanban-columns";
 import { findCustomerByIdForUser } from "@/lib/data/customers";
+import { parseOptionalEuroInput } from "@/lib/parse-euro-amount";
 import {
   deleteTaskForUser,
   insertTask,
@@ -28,6 +29,7 @@ export type CreateTaskResult =
         duration_minutes: number | null;
         customer_id: string | null;
         customer_name: string | null;
+        potential_amount_eur: number | null;
       };
     }
   | { ok: false; error: string };
@@ -66,6 +68,7 @@ export async function createKanbanTask(rawStatus: string, rawTitle: string): Pro
         duration_minutes: task.duration_minutes ?? null,
         customer_id: task.customer_id,
         customer_name: task.customer_name,
+        potential_amount_eur: task.potential_amount_eur ?? null,
       },
     };
   } catch {
@@ -112,6 +115,7 @@ export async function updateKanbanTaskDetails(
   rawCustomerId: string,
   rawStartsAtIso: string,
   rawDurationMinutes: string,
+  rawPotentialAmountEur: string,
 ): Promise<UpdateTaskDetailsResult> {
   const session = await getSession();
   if (!session) {
@@ -160,6 +164,11 @@ export async function updateKanbanTaskDetails(
     durationMinutes = n === 0 ? null : n;
   }
 
+  const euroParsed = parseOptionalEuroInput(rawPotentialAmountEur);
+  if (!euroParsed.ok) {
+    return { ok: false, error: euroParsed.error };
+  }
+
   try {
     const row = await updateTaskDetailsForUser(taskId, session.userId, {
       title,
@@ -167,6 +176,7 @@ export async function updateKanbanTaskDetails(
       customerId,
       startsAt,
       durationMinutes,
+      potentialAmountEur: euroParsed.value,
     });
     if (!row) {
       return { ok: false, error: "Aufgabe nicht gefunden." };

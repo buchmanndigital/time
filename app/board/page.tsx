@@ -4,6 +4,7 @@ import { KanbanBoard } from "@/components/kanban-board";
 import { getSession } from "@/lib/auth/session";
 import { listCustomersByUserId } from "@/lib/data/customers";
 import { listTasksByUserId } from "@/lib/data/tasks";
+import { taskRowToKanbanDto } from "@/lib/kanban-task-dto";
 
 export default async function BoardPage() {
   const session = await getSession();
@@ -16,23 +17,7 @@ export default async function BoardPage() {
     listCustomersByUserId(session.userId),
   ]);
 
-  const initialTasks = rows.map((t) => ({
-    id: t.id,
-    title: t.title,
-    description: t.description ?? null,
-    status: t.status,
-    created_at:
-      t.created_at instanceof Date ? t.created_at.toISOString() : String(t.created_at),
-    starts_at:
-      t.starts_at == null
-        ? null
-        : t.starts_at instanceof Date
-          ? t.starts_at.toISOString()
-          : String(t.starts_at),
-    duration_minutes: t.duration_minutes ?? null,
-    customer_id: t.customer_id ?? null,
-    customer_name: t.customer_name ?? null,
-  }));
+  const initialTasks = rows.map(taskRowToKanbanDto);
 
   const customers = customerRows.map((c) => ({ id: c.id, name: c.name }));
 

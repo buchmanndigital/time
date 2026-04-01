@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { updateKanbanTaskSchedule } from "@/app/actions/tasks";
 import type { KanbanTaskDto } from "@/lib/kanban-task-dto";
+import { formatPotentialEurDe } from "@/lib/format-potential-eur";
 import {
   WeekTimelineTaskBlock,
   type SchedulePreviewPatch,
@@ -154,12 +155,14 @@ function MonthDayTaskRow({
 }) {
   const meta = statusMeta(task.status);
   const time = task.starts_at ? utcIsoToLocalTime(task.starts_at) : "";
+  const amountDe = formatPotentialEurDe(task.potential_amount_eur);
   const tip = [
     time,
     task.customer_name ?? undefined,
     task.duration_minutes != null && task.duration_minutes > 0
       ? formatDurationDe(task.duration_minutes)
       : undefined,
+    amountDe ?? undefined,
     meta.label,
     "Ziehen zum Verschieben auf einen anderen Tag",
   ]
@@ -185,6 +188,9 @@ function MonthDayTaskRow({
     >
       <span className="tabular-nums text-foreground/50">{time}</span>{" "}
       <span className="text-foreground/90">{task.title}</span>
+      {amountDe ? (
+        <span className="text-foreground/45"> · {amountDe}</span>
+      ) : null}
     </div>
   );
 }

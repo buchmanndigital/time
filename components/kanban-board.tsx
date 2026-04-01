@@ -19,6 +19,7 @@ import { createKanbanTask, updateKanbanTaskStatus } from "@/app/actions/tasks";
 import { TaskDetailModal, type KanbanCustomerOption } from "@/components/task-detail-modal";
 import type { KanbanTaskDto } from "@/lib/kanban-task-dto";
 import { KANBAN_COLUMNS, type KanbanStatus } from "@/lib/kanban-columns";
+import { formatPotentialEurDe } from "@/lib/format-potential-eur";
 import { formatTaskScheduleLine } from "@/lib/task-schedule-format";
 import { cn } from "@/lib/utils/cn";
 
@@ -57,6 +58,7 @@ function DraggableTaskCard({
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
   const scheduleLine = formatTaskScheduleLine(task.starts_at, task.duration_minutes);
+  const amountLine = formatPotentialEurDe(task.potential_amount_eur);
 
   return (
     <li
@@ -86,6 +88,11 @@ function DraggableTaskCard({
         ) : null}
         {scheduleLine ? (
           <span className="mt-0.5 block truncate text-xs text-foreground/45">{scheduleLine}</span>
+        ) : null}
+        {amountLine ? (
+          <span className="mt-0.5 block truncate text-xs font-medium text-emerald-700/85 dark:text-emerald-400/90">
+            {amountLine}
+          </span>
         ) : null}
       </button>
     </li>

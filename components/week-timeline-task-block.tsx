@@ -2,6 +2,7 @@
 
 import { useCallback, useRef } from "react";
 import type { KanbanTaskDto } from "@/lib/kanban-task-dto";
+import { formatPotentialEurDe } from "@/lib/format-potential-eur";
 import type { KanbanStatus } from "@/lib/kanban-columns";
 import { formatDurationDe } from "@/lib/task-schedule-format";
 import { cn } from "@/lib/utils/cn";
@@ -210,10 +211,12 @@ export function WeekTimelineTaskBlock({
   const endD = new Date(startAt.getTime() + durForMath * 60_000);
   const timeLabel = formatHmLocal(startAt);
   const endLabel = formatHmLocal(endD);
+  const amountDe = formatPotentialEurDe(task.potential_amount_eur);
   const tip = [
     `${timeLabel}–${endLabel}`,
     task.customer_name ?? undefined,
     storedDuration != null ? formatDurationDe(storedDuration) : undefined,
+    amountDe ?? undefined,
     meta.label,
   ]
     .filter(Boolean)
@@ -327,6 +330,7 @@ export function WeekTimelineTaskBlock({
         <span className="truncate text-[0.58rem] tabular-nums text-foreground/60 sm:text-[0.62rem]">
           {timeLabel} – {endLabel}
           {task.customer_name ? ` · ${task.customer_name}` : ""}
+          {amountDe ? ` · ${amountDe}` : ""}
         </span>
       </div>
       <div

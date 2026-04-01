@@ -1,6 +1,16 @@
 import { getSql } from "@/lib/neon";
 import type { KanbanStatus } from "@/lib/kanban-columns";
 
+function coercePotentialEurDb(v: unknown): number | null {
+  if (v == null) return null;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = Number.parseFloat(v.replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 export type TaskRow = {
   id: string;
   user_id: string;
@@ -12,6 +22,7 @@ export type TaskRow = {
   duration_minutes: number | null;
   customer_id: string | null;
   customer_name: string | null;
+  potential_amount_eur: number | null;
 };
 
 export async function listTasksByCustomerIdForUser(
@@ -30,13 +41,14 @@ export async function listTasksByCustomerIdForUser(
       t.starts_at,
       t.duration_minutes,
       t.customer_id,
+      t.potential_amount_eur,
       c.name AS customer_name
     FROM tasks t
     LEFT JOIN customers c ON c.id = t.customer_id AND c.user_id = t.user_id
     WHERE t.user_id = ${userId} AND t.customer_id = ${customerId}
     ORDER BY t.created_at ASC
-  `) as TaskRow[];
-  return rows;
+  `) as Array<Omit<TaskRow, "potential_amount_eur"> & { potential_amount_eur: unknown }>;
+  return rows.map((r) => ({ ...r, potential_amount_eur: coercePotentialEurDb(r.potential_amount_eur) }));
 }
 
 export async function listTasksByUserId(userId: string): Promise<TaskRow[]> {
@@ -52,13 +64,14 @@ export async function listTasksByUserId(userId: string): Promise<TaskRow[]> {
       t.starts_at,
       t.duration_minutes,
       t.customer_id,
+      t.potential_amount_eur,
       c.name AS customer_name
     FROM tasks t
     LEFT JOIN customers c ON c.id = t.customer_id AND c.user_id = t.user_id
     WHERE t.user_id = ${userId}
     ORDER BY t.created_at ASC
-  `) as TaskRow[];
-  return rows;
+  `) as Array<Omit<TaskRow, "potential_amount_eur"> & { potential_amount_eur: unknown }>;
+  return rows.map((r) => ({ ...r, potential_amount_eur: coercePotentialEurDb(r.potential_amount_eur) }));
 }
 
 export async function findTaskByIdForUser(taskId: string, userId: string): Promise<TaskRow | null> {
@@ -74,13 +87,16 @@ export async function findTaskByIdForUser(taskId: string, userId: string): Promi
       t.starts_at,
       t.duration_minutes,
       t.customer_id,
+      t.potential_amount_eur,
       c.name AS customer_name
     FROM tasks t
     LEFT JOIN customers c ON c.id = t.customer_id AND c.user_id = t.user_id
     WHERE t.id = ${taskId} AND t.user_id = ${userId}
     LIMIT 1
-  `) as TaskRow[];
-  return rows[0] ?? null;
+  `) as Array<Omit<TaskRow, "potential_amount_eur"> & { potential_amount_eur: unknown }>;
+  const r = rows[0];
+  if (!r) return null;
+  return { ...r, potential_amount_eur: coercePotentialEurDb(r.potential_amount_eur) };
 }
 
 export async function insertTask(
@@ -102,11 +118,16 @@ export async function insertTask(
       created_at,
       starts_at,
       duration_minutes,
-      customer_id
-  `) as Array<Omit<TaskRow, "customer_name">>;
+      customer_id,
+      potential_amount_eur
+  `) as Array<Omit<TaskRow, "customer_name" | "potential_amount_eur"> & { potential_amount_eur: unknown }>;
   const row = rows[0];
   if (!row) throw new Error("INSERT tasks lieferte keine Zeile.");
-  return { ...row, customer_name: null };
+  return {
+    ...row,
+    customer_name: null,
+    potential_amount_eur: coercePotentialEurDb(row.potential_amount_eur),
+  };
 }
 
 export async function insertTaskFull(
@@ -119,6 +140,7 @@ export async function insertTaskFull(
     customerId: string | null;
     startsAt: Date | null;
     durationMinutes: number | null;
+    potentialAmountEur: number | null;
   },
 ): Promise<TaskRow> {
   const sql = getSql();
@@ -131,7 +153,8 @@ export async function insertTaskFull(
       description,
       customer_id,
       starts_at,
-      duration_minutes
+      duration_minutes,
+      potential_amount_eur
     )
     VALUES (
       ${id},
@@ -141,7 +164,8 @@ export async function insertTaskFull(
       ${data.description},
       ${data.customerId},
       ${data.startsAt},
-      ${data.durationMinutes}
+      ${data.durationMinutes},
+      ${data.potentialAmountEur}
     )
     RETURNING
       id,
@@ -152,11 +176,16 @@ export async function insertTaskFull(
       created_at,
       starts_at,
       duration_minutes,
-      customer_id
-  `) as Array<Omit<TaskRow, "customer_name">>;
+      customer_id,
+      potential_amount_eur
+  `) as Array<Omit<TaskRow, "customer_name" | "potential_amount_eur"> & { potential_amount_eur: unknown }>;
   const row = rows[0];
   if (!row) throw new Error("INSERT tasks lieferte keine Zeile.");
-  return { ...row, customer_name: null };
+  return {
+    ...row,
+    customer_name: null,
+    potential_amount_eur: coercePotentialEurDb(row.potential_amount_eur),
+  };
 }
 
 export async function deleteTaskForUser(taskId: string, userId: string): Promise<boolean> {
@@ -188,11 +217,16 @@ export async function updateTaskStatusForUser(
       created_at,
       starts_at,
       duration_minutes,
-      customer_id
-  `) as Array<Omit<TaskRow, "customer_name">>;
+      customer_id,
+      potential_amount_eur
+  `) as Array<Omit<TaskRow, "customer_name" | "potential_amount_eur"> & { potential_amount_eur: unknown }>;
   const row = rows[0];
   if (!row) return null;
-  return { ...row, customer_name: null };
+  return {
+    ...row,
+    customer_name: null,
+    potential_amount_eur: coercePotentialEurDb(row.potential_amount_eur),
+  };
 }
 
 export async function updateTaskCustomerForUser(
@@ -214,9 +248,12 @@ export async function updateTaskCustomerForUser(
       created_at,
       starts_at,
       duration_minutes,
-      customer_id
-  `) as Array<Omit<TaskRow, "customer_name">>;
-  return rows[0] ?? null;
+      customer_id,
+      potential_amount_eur
+  `) as Array<Omit<TaskRow, "customer_name" | "potential_amount_eur"> & { potential_amount_eur: unknown }>;
+  const row = rows[0];
+  if (!row) return null;
+  return { ...row, potential_amount_eur: coercePotentialEurDb(row.potential_amount_eur) };
 }
 
 export async function updateTaskDetailsForUser(
@@ -228,6 +265,7 @@ export async function updateTaskDetailsForUser(
     customerId: string | null;
     startsAt: Date | null;
     durationMinutes: number | null;
+    potentialAmountEur: number | null;
   },
 ): Promise<Omit<TaskRow, "customer_name"> | null> {
   const sql = getSql();
@@ -238,7 +276,8 @@ export async function updateTaskDetailsForUser(
       description = ${data.description},
       customer_id = ${data.customerId},
       starts_at = ${data.startsAt},
-      duration_minutes = ${data.durationMinutes}
+      duration_minutes = ${data.durationMinutes},
+      potential_amount_eur = ${data.potentialAmountEur}
     WHERE id = ${taskId} AND user_id = ${userId}
     RETURNING
       id,
@@ -249,9 +288,12 @@ export async function updateTaskDetailsForUser(
       created_at,
       starts_at,
       duration_minutes,
-      customer_id
-  `) as Array<Omit<TaskRow, "customer_name">>;
-  return rows[0] ?? null;
+      customer_id,
+      potential_amount_eur
+  `) as Array<Omit<TaskRow, "customer_name" | "potential_amount_eur"> & { potential_amount_eur: unknown }>;
+  const row = rows[0];
+  if (!row) return null;
+  return { ...row, potential_amount_eur: coercePotentialEurDb(row.potential_amount_eur) };
 }
 
 export async function updateTaskScheduleForUser(
@@ -275,7 +317,10 @@ export async function updateTaskScheduleForUser(
       created_at,
       starts_at,
       duration_minutes,
-      customer_id
-  `) as Array<Omit<TaskRow, "customer_name">>;
-  return rows[0] ?? null;
+      customer_id,
+      potential_amount_eur
+  `) as Array<Omit<TaskRow, "customer_name" | "potential_amount_eur"> & { potential_amount_eur: unknown }>;
+  const row = rows[0];
+  if (!row) return null;
+  return { ...row, potential_amount_eur: coercePotentialEurDb(row.potential_amount_eur) };
 }

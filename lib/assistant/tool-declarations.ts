@@ -37,7 +37,7 @@ export const ASSISTANT_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: "list_tasks",
     description:
-      "Listet Kanban-/Kalender-Aufgaben mit id, Titel, Status, Termin (starts_at ISO oder null), Dauer, Kunde.",
+      "Listet Kanban-/Kalender-Aufgaben mit id, Titel, Status, Termin (starts_at ISO oder null), Dauer, Kunde, optionalem potentiellen Betrag (potential_amount_eur, EUR).",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
@@ -86,7 +86,7 @@ export const ASSISTANT_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: "create_task",
     description:
-      "Neue Aufgabe. Status: open | in_progress | paused | done (default open). Optional Kunde (customer_id), Beschreibung, Start (starts_at_iso), Dauer in Minuten.",
+      "Neue Aufgabe. Status: open | in_progress | paused | done (default open). Optional Kunde (customer_id), Beschreibung, Start (starts_at_iso), Dauer in Minuten, potentieller Betrag in EUR (potential_amount_eur).",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
@@ -103,6 +103,10 @@ export const ASSISTANT_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
             "Datum/Uhrzeit, z. B. 2026-04-15T14:00:00 — ohne Z/Offset = Uhrzeit Europe/Berlin (DE). Optional …Z oder ±HH:MM",
         },
         duration_minutes: { type: SchemaType.INTEGER, description: "Optional, 0 oder leer = keine feste Dauer" },
+        potential_amount_eur: {
+          type: SchemaType.NUMBER,
+          description: "Optional: geschätzter Umsatz/Auftragswert in EUR (ohne Währung).",
+        },
       },
       required: ["title"],
     },
@@ -110,7 +114,7 @@ export const ASSISTANT_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: "update_task",
     description:
-      "Aufgabe ändern. Nur angegebene Felder setzen. clear_schedule=true entfernt Termin und Dauer.",
+      "Aufgabe ändern. Nur angegebene Felder setzen. clear_schedule=true entfernt Termin und Dauer. clear_potential_amount=true entfernt den potentiellen Betrag.",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
@@ -124,6 +128,14 @@ export const ASSISTANT_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
           description: "ISO; ohne Z/Offset = Berlin-Ortszeit; leer optional",
         },
         duration_minutes: { type: SchemaType.INTEGER },
+        potential_amount_eur: {
+          type: SchemaType.NUMBER,
+          description: "Optional: neuer potentieller Betrag in EUR.",
+        },
+        clear_potential_amount: {
+          type: SchemaType.BOOLEAN,
+          description: "true = potentiellen Betrag entfernen",
+        },
         clear_schedule: {
           type: SchemaType.BOOLEAN,
           description: "true = Termin und Dauer entfernen",

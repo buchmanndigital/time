@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { deleteKanbanTask, updateKanbanTaskDetails } from "@/app/actions/tasks";
 import type { KanbanTaskDto } from "@/lib/kanban-task-dto";
 import { KANBAN_COLUMNS } from "@/lib/kanban-columns";
+import { euroNumberToFormString } from "@/lib/format-potential-eur";
+import { parseOptionalEuroInput } from "@/lib/parse-euro-amount";
 import { utcIsoToLocalDate, utcIsoToLocalTime } from "@/lib/task-schedule-format";
 
 /** Kundenoptionen für die Zuweisung im Aufgaben-Dialog */
@@ -20,6 +22,7 @@ export type TaskDetailSavedPatch = Pick<
   | "customer_name"
   | "starts_at"
   | "duration_minutes"
+  | "potential_amount_eur"
 >;
 
 type Props = {
@@ -91,6 +94,7 @@ export function TaskDetailModal({ task, customers, open, onClose, onSaved, onDel
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
   const [durationInput, setDurationInput] = useState("");
+  const [potentialAmountInput, setPotentialAmountInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const dateInputRef = useRef<HTMLInputElement>(null);
@@ -113,6 +117,11 @@ export function TaskDetailModal({ task, customers, open, onClose, onSaved, onDel
       setDurationInput(
         task.duration_minutes != null && task.duration_minutes > 0
           ? String(task.duration_minutes)
+          : "",
+      );
+      setPotentialAmountInput(
+        task.potential_amount_eur != null && Number.isFinite(task.potential_amount_eur)
+          ? euroNumberToFormString(task.potential_amount_eur)
           : "",
       );
       prevDateForSuggestRef.current =
@@ -204,6 +213,7 @@ export function TaskDetailModal({ task, customers, open, onClose, onSaved, onDel
         customerId,
         scheduleDate.trim() === "" ? "" : rawStarts,
         durationInput,
+        potentialAmountInput,
       );
       if (res.ok) {
         const cid = customerId.trim() === "" ? null : customerId.trim();
@@ -215,6 +225,8 @@ export function TaskDetailModal({ task, customers, open, onClose, onSaved, onDel
           const n = Number.parseInt(dmTrim, 10);
           if (Number.isFinite(n) && n > 0) duration_minutes = n;
         }
+        const pAmt = parseOptionalEuroInput(potentialAmountInput.trim());
+        const potential_amount_eur = pAmt.ok ? pAmt.value : null;
         onSaved(taskId, {
           title: title.trim(),
           description: descTrim === "" ? null : descTrim,
@@ -222,6 +234,7 @@ export function TaskDetailModal({ task, customers, open, onClose, onSaved, onDel
           customer_name: cname,
           starts_at: scheduleDate.trim() === "" ? null : rawStarts,
           duration_minutes,
+          potential_amount_eur,
         });
         onClose();
       } else {
@@ -499,6 +512,29 @@ export function TaskDetailModal({ task, customers, open, onClose, onSaved, onDel
             </select>
             <p className="max-w-lg text-sm text-foreground/50">
               Wähle einen der angelegten Kunden oder entferne die Zuweisung.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <label htmlFor="task-potential-eur" className="block text-sm font-medium text-foreground">
+              Potentieller Betrag (optional)
+            </label>
+            <div className="flex w-full max-w-md min-h-[3rem] items-center gap-3 rounded-xl border border-foreground/15 bg-background px-4 py-2 focus-within:border-foreground/35 focus-within:ring-2 focus-within:ring-foreground/20">
+              <span className="text-sm font-medium text-foreground/50">€</span>
+              <input
+                disabled={pending}
+                id="task-potential-eur"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="z. B. 1.500 oder 250,50"
+                value={potentialAmountInput}
+                onChange={(e) => setPotentialAmountInput(e.target.value)}
+                className="min-w-0 flex-1 border-0 bg-transparent py-1 text-base text-foreground outline-none placeholder:text-foreground/35 disabled:cursor-not-allowed"
+              />
+            </div>
+            <p className="max-w-lg text-sm text-foreground/50">
+              Geschätzter Umsatz oder Auftragswert, der bei dieser Aufgabe anstehen könnte. Leer lassen, wenn unbekannt.
             </p>
           </div>
 

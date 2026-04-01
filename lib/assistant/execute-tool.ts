@@ -8,6 +8,7 @@ import {
   listCustomersByUserId,
   updateCustomerForUser,
 } from "@/lib/data/customers";
+import { optionalEuroFromToolArg } from "@/lib/parse-euro-amount";
 import { parseStartsAtInputToUtc } from "@/lib/parse-starts-at-utc";
 import { browserUseResearch } from "@/lib/assistant/browser-use-research";
 import {
@@ -71,6 +72,7 @@ export async function executeAssistantTool(
             description: t.description,
             starts_at: t.starts_at ? t.starts_at.toISOString() : null,
             duration_minutes: t.duration_minutes,
+            potential_amount_eur: t.potential_amount_eur,
           })),
           task_count: taskRows.length,
         };
@@ -119,6 +121,7 @@ export async function executeAssistantTool(
             duration_minutes: t.duration_minutes,
             customer_id: t.customer_id,
             customer_name: t.customer_name,
+            potential_amount_eur: t.potential_amount_eur,
           })),
         };
       }
@@ -204,6 +207,15 @@ export async function executeAssistantTool(
           durationMinutes = n === 0 ? null : Math.round(n);
         }
 
+        let potentialAmountEur: number | null = null;
+        if (rawArgs.potential_amount_eur !== undefined) {
+          const pe = optionalEuroFromToolArg(rawArgs.potential_amount_eur);
+          if (!pe.ok) {
+            return { ok: false, error: pe.error };
+          }
+          potentialAmountEur = pe.value;
+        }
+
         const row = await insertTaskFull(randomUUID(), userId, {
           title,
           status,
@@ -211,6 +223,7 @@ export async function executeAssistantTool(
           customerId,
           startsAt,
           durationMinutes,
+          potentialAmountEur,
         });
         revalidateApp();
         return {
@@ -222,6 +235,7 @@ export async function executeAssistantTool(
             starts_at: row.starts_at ? row.starts_at.toISOString() : null,
             duration_minutes: row.duration_minutes,
             customer_id: row.customer_id,
+            potential_amount_eur: row.potential_amount_eur,
           },
         };
       }
@@ -311,12 +325,24 @@ export async function executeAssistantTool(
           }
         }
 
+        let potentialAmountEur: number | null = refreshed.potential_amount_eur;
+        if (rawArgs.clear_potential_amount === true) {
+          potentialAmountEur = null;
+        } else if (rawArgs.potential_amount_eur !== undefined) {
+          const pe = optionalEuroFromToolArg(rawArgs.potential_amount_eur);
+          if (!pe.ok) {
+            return { ok: false, error: pe.error };
+          }
+          potentialAmountEur = pe.value;
+        }
+
         const updated = await updateTaskDetailsForUser(taskId, userId, {
           title,
           description,
           customerId,
           startsAt,
           durationMinutes,
+          potentialAmountEur,
         });
         if (!updated) {
           return { ok: false, error: "Aufgabe konnte nicht aktualisiert werden." };
@@ -333,6 +359,7 @@ export async function executeAssistantTool(
             duration_minutes: out.duration_minutes,
             customer_id: out.customer_id,
             customer_name: out.customer_name,
+            potential_amount_eur: out.potential_amount_eur,
           },
         };
       }
