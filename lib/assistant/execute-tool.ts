@@ -9,7 +9,7 @@ import {
   updateCustomerForUser,
 } from "@/lib/data/customers";
 import { parseStartsAtInputToUtc } from "@/lib/parse-starts-at-utc";
-import { tavilySearch } from "@/lib/assistant/tavily-search";
+import { browserUseResearch } from "@/lib/assistant/browser-use-research";
 import {
   deleteTaskForUser,
   findTaskByIdForUser,
@@ -78,7 +78,7 @@ export async function executeAssistantTool(
 
       case "web_research": {
         const q = str(rawArgs.query).trim();
-        const out = await tavilySearch(q);
+        const out = await browserUseResearch(q);
         if (!out.ok) {
           return { ok: false, error: out.error };
         }

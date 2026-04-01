@@ -16,7 +16,7 @@ export const ASSISTANT_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: "web_research",
     description:
-      "Öffentliche Websuche zu Firma, Person oder Thema – ergänzt TIME-Daten (Branche, Profil, aktuelle Infos). Präzise Suchanfrage (z. B. Firmenname + „Unternehmen Deutschland“). Antwort des Nutzers mit Quellen (Titel oder Domain der Treffer) untermauern. Erfordert TAVILY_API_KEY auf dem Server.",
+      "Öffentliche Web-Recherche (Browser-Automation über Browser Use Cloud): Firma, Adresse, Thema – ergänzt TIME-Daten. Präzise Suchanfrage formulieren. Quellen in der Antwort nennen. Erfordert BROWSER_USE_API_KEY (API-Key wie bei browser-use CLI, cloud.browser-use.com).",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
