@@ -18,6 +18,20 @@ export async function listCustomersByUserId(userId: string): Promise<CustomerRow
   return rows;
 }
 
+export async function findCustomerByIdForUser(
+  customerId: string,
+  userId: string,
+): Promise<CustomerRow | null> {
+  const sql = getSql();
+  const rows = (await sql`
+    SELECT id, user_id, name, created_at
+    FROM customers
+    WHERE id = ${customerId} AND user_id = ${userId}
+    LIMIT 1
+  `) as CustomerRow[];
+  return rows[0] ?? null;
+}
+
 export async function insertCustomer(
   id: string,
   userId: string,

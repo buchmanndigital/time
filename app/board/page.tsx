@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { AuthenticatedAppShell } from "@/components/authenticated-app-shell";
 import { KanbanBoard } from "@/components/kanban-board";
 import { getSession } from "@/lib/auth/session";
+import { listCustomersByUserId } from "@/lib/data/customers";
 import { listTasksByUserId } from "@/lib/data/tasks";
 
 export default async function BoardPage() {
@@ -10,19 +11,27 @@ export default async function BoardPage() {
     redirect("/login");
   }
 
-  const rows = await listTasksByUserId(session.userId);
+  const [rows, customerRows] = await Promise.all([
+    listTasksByUserId(session.userId),
+    listCustomersByUserId(session.userId),
+  ]);
+
   const initialTasks = rows.map((t) => ({
     id: t.id,
     title: t.title,
     status: t.status,
     created_at:
       t.created_at instanceof Date ? t.created_at.toISOString() : String(t.created_at),
+    customer_id: t.customer_id ?? null,
+    customer_name: t.customer_name ?? null,
   }));
+
+  const customers = customerRows.map((c) => ({ id: c.id, name: c.name }));
 
   return (
     <AuthenticatedAppShell userEmail={session.email}>
       <div className="p-6 md:p-10">
-        <KanbanBoard initialTasks={initialTasks} />
+        <KanbanBoard initialTasks={initialTasks} customers={customers} />
       </div>
     </AuthenticatedAppShell>
   );

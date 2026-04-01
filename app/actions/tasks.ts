@@ -1,12 +1,24 @@
 "use server";
 
 import { randomUUID } from "crypto";
+import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth/session";
 import { isKanbanStatus } from "@/lib/kanban-columns";
-import { insertTask, updateTaskStatusForUser } from "@/lib/data/tasks";
+import { findCustomerByIdForUser } from "@/lib/data/customers";
+import { insertTask, updateTaskCustomerForUser, updateTaskStatusForUser } from "@/lib/data/tasks";
 
 export type CreateTaskResult =
-  | { ok: true; task: { id: string; title: string; status: string; created_at: string } }
+  | {
+      ok: true;
+      task: {
+        id: string;
+        title: string;
+        status: string;
+        created_at: string;
+        customer_id: string | null;
+        customer_name: string | null;
+      };
+    }
   | { ok: false; error: string };
 
 export async function createKanbanTask(rawStatus: string, rawTitle: string): Promise<CreateTaskResult> {
@@ -35,6 +47,8 @@ export async function createKanbanTask(rawStatus: string, rawTitle: string): Pro
         title: task.title,
         status: task.status,
         created_at: task.created_at.toISOString(),
+        customer_id: task.customer_id,
+        customer_name: task.customer_name,
       },
     };
   } catch {
@@ -64,6 +78,42 @@ export async function updateKanbanTaskStatus(
     if (!row) {
       return { ok: false, error: "Aufgabe nicht gefunden." };
     }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Speichern fehlgeschlagen." };
+  }
+}
+
+export type UpdateTaskCustomerResult = { ok: true } | { ok: false; error: string };
+
+export async function updateKanbanTaskCustomer(
+  taskId: string,
+  rawCustomerId: string,
+): Promise<UpdateTaskCustomerResult> {
+  const session = await getSession();
+  if (!session) {
+    return { ok: false, error: "Nicht angemeldet." };
+  }
+  if (!process.env.DATABASE_URL?.trim()) {
+    return { ok: false, error: "Datenbank nicht konfiguriert." };
+  }
+
+  const trimmed = rawCustomerId.trim();
+  const customerId = trimmed === "" ? null : trimmed;
+
+  if (customerId) {
+    const customer = await findCustomerByIdForUser(customerId, session.userId);
+    if (!customer) {
+      return { ok: false, error: "Kunde nicht gefunden." };
+    }
+  }
+
+  try {
+    const row = await updateTaskCustomerForUser(taskId, session.userId, customerId);
+    if (!row) {
+      return { ok: false, error: "Aufgabe nicht gefunden." };
+    }
+    revalidatePath("/board");
     return { ok: true };
   } catch {
     return { ok: false, error: "Speichern fehlgeschlagen." };

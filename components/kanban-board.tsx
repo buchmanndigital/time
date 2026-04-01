@@ -16,15 +16,12 @@ import {
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { createKanbanTask, updateKanbanTaskStatus } from "@/app/actions/tasks";
+import { KanbanTaskDetailModal, type KanbanCustomerOption } from "@/components/kanban-task-detail-modal";
+import type { KanbanTaskDto } from "@/lib/kanban-task-dto";
 import { KANBAN_COLUMNS, type KanbanStatus } from "@/lib/kanban-columns";
 import { cn } from "@/lib/utils/cn";
 
-export type KanbanTaskDto = {
-  id: string;
-  title: string;
-  status: KanbanStatus;
-  created_at: string;
-};
+export type { KanbanTaskDto };
 
 function KanbanBoardSkeleton() {
   return (
@@ -50,21 +47,56 @@ function resolveDropStatus(overId: string, taskList: KanbanTaskDto[]): KanbanSta
   return hit ? hit.status : null;
 }
 
-function DraggableTaskCard({ task }: { task: KanbanTaskDto }) {
+function DraggableTaskCard({
+  task,
+  onOpenDetail,
+}: {
+  task: KanbanTaskDto;
+  onOpenDetail: () => void;
+}) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
 
   return (
     <li
       ref={setNodeRef}
       className={cn(
-        "cursor-grab touch-none rounded-lg border border-foreground/10 bg-background/80 px-3 py-2 text-sm text-foreground shadow-sm active:cursor-grabbing",
+        "flex gap-2 rounded-lg border border-foreground/10 bg-background/80 text-sm text-foreground shadow-sm",
         isDragging && "opacity-50",
       )}
-      {...listeners}
-      {...attributes}
     >
-      {task.title}
+      <button
+        type="button"
+        className="flex shrink-0 touch-none cursor-grab items-center justify-center rounded-l-lg border-r border-foreground/10 px-2 py-2 text-foreground/45 hover:bg-foreground/5 hover:text-foreground/70 active:cursor-grabbing"
+        aria-label={`Aufgabe „${task.title}“ verschieben`}
+        {...listeners}
+        {...attributes}
+      >
+        <GripIcon />
+      </button>
+      <button
+        type="button"
+        onClick={onOpenDetail}
+        className="min-w-0 flex-1 px-3 py-2 text-left transition-colors hover:bg-foreground/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-foreground/25"
+      >
+        <span className="font-medium text-foreground">{task.title}</span>
+        {task.customer_name ? (
+          <span className="mt-0.5 block truncate text-xs text-foreground/50">{task.customer_name}</span>
+        ) : null}
+      </button>
     </li>
+  );
+}
+
+function GripIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden className="opacity-70">
+      <circle cx="9" cy="8" r="1.5" />
+      <circle cx="15" cy="8" r="1.5" />
+      <circle cx="9" cy="12" r="1.5" />
+      <circle cx="15" cy="12" r="1.5" />
+      <circle cx="9" cy="16" r="1.5" />
+      <circle cx="15" cy="16" r="1.5" />
+    </svg>
   );
 }
 
@@ -73,11 +105,13 @@ function KanbanColumnBody({
   columnTitle,
   tasks,
   children,
+  onOpenTaskDetail,
 }: {
   columnId: KanbanStatus;
   columnTitle: string;
   tasks: KanbanTaskDto[];
   children: ReactNode;
+  onOpenTaskDetail: (task: KanbanTaskDto) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: columnId });
 
@@ -92,7 +126,7 @@ function KanbanColumnBody({
     >
       <ul className="flex flex-col gap-2 p-3">
         {tasks.map((task) => (
-          <DraggableTaskCard key={task.id} task={task} />
+          <DraggableTaskCard key={task.id} task={task} onOpenDetail={() => onOpenTaskDetail(task)} />
         ))}
       </ul>
       {children}
@@ -100,7 +134,13 @@ function KanbanColumnBody({
   );
 }
 
-export function KanbanBoard({ initialTasks }: { initialTasks: KanbanTaskDto[] }) {
+export function KanbanBoard({
+  initialTasks,
+  customers,
+}: {
+  initialTasks: KanbanTaskDto[];
+  customers: KanbanCustomerOption[];
+}) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -111,10 +151,16 @@ export function KanbanBoard({ initialTasks }: { initialTasks: KanbanTaskDto[] })
     return <KanbanBoardSkeleton />;
   }
 
-  return <KanbanBoardReady initialTasks={initialTasks} />;
+  return <KanbanBoardReady initialTasks={initialTasks} customers={customers} />;
 }
 
-function KanbanBoardReady({ initialTasks }: { initialTasks: KanbanTaskDto[] }) {
+function KanbanBoardReady({
+  initialTasks,
+  customers,
+}: {
+  initialTasks: KanbanTaskDto[];
+  customers: KanbanCustomerOption[];
+}) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
   const [addingFor, setAddingFor] = useState<KanbanStatus | null>(null);
@@ -122,6 +168,7 @@ function KanbanBoardReady({ initialTasks }: { initialTasks: KanbanTaskDto[] }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [activeTask, setActiveTask] = useState<KanbanTaskDto | null>(null);
+  const [detailTask, setDetailTask] = useState<KanbanTaskDto | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -170,7 +217,12 @@ function KanbanBoardReady({ initialTasks }: { initialTasks: KanbanTaskDto[] }) {
     const newStatus = resolveDropStatus(String(over.id), tasks);
     if (!newStatus || newStatus === task.status) return;
 
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)),
+    );
+    setDetailTask((prev) =>
+      prev?.id === taskId ? { ...prev, status: newStatus } : prev,
+    );
 
     startTransition(async () => {
       const res = await updateKanbanTaskStatus(taskId, newStatus);
@@ -214,7 +266,12 @@ function KanbanBoardReady({ initialTasks }: { initialTasks: KanbanTaskDto[] }) {
                   <h2 className="text-sm font-medium text-foreground">{col.title}</h2>
                 </header>
 
-                <KanbanColumnBody columnId={col.id} columnTitle={col.title} tasks={columnTasks}>
+                <KanbanColumnBody
+                  columnId={col.id}
+                  columnTitle={col.title}
+                  tasks={columnTasks}
+                  onOpenTaskDetail={setDetailTask}
+                >
                   <div className="mt-auto flex flex-col gap-2 border-t border-foreground/10 p-3">
                     <div
                       className={
@@ -303,6 +360,25 @@ function KanbanBoardReady({ initialTasks }: { initialTasks: KanbanTaskDto[] }) {
           </div>
         ) : null}
       </DragOverlay>
+
+      <KanbanTaskDetailModal
+        task={detailTask}
+        customers={customers}
+        open={detailTask !== null}
+        onClose={() => setDetailTask(null)}
+        onCustomerUpdated={(taskId, customerId, customerName) => {
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId ? { ...t, customer_id: customerId, customer_name: customerName } : t,
+            ),
+          );
+          setDetailTask((prev) =>
+            prev?.id === taskId
+              ? { ...prev, customer_id: customerId, customer_name: customerName }
+              : prev,
+          );
+        }}
+      />
     </DndContext>
   );
 }
