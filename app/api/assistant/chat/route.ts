@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI, type Content, type Part } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { executeAssistantTool } from "@/lib/assistant/execute-tool";
+import { sanitizeAssistantReplyForDisplay } from "@/lib/assistant/sanitize-reply-for-display";
 import { buildAssistantSystemInstruction } from "@/lib/assistant/system-prompt";
 import { ASSISTANT_FUNCTION_DECLARATIONS } from "@/lib/assistant/tool-declarations";
 import { getSession } from "@/lib/auth/session";
@@ -110,7 +111,7 @@ export async function POST(req: Request) {
         reply =
           "Die Antwort konnte nicht gelesen werden (inhaltlich blockiert oder leer). Bitte formuliere kürzer oder anders.";
       }
-      return NextResponse.json({ reply });
+      return NextResponse.json({ reply: sanitizeAssistantReplyForDisplay(reply) });
     }
 
     return NextResponse.json({ error: "Zu viele Tool-Schritte." }, { status: 500 });

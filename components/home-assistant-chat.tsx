@@ -76,12 +76,7 @@ export function HomeAssistantChat() {
   };
 
   const composer = (
-    <div
-      className={cn(
-        "relative w-full max-w-2xl",
-        !hasMessages && "shadow-lg shadow-foreground/[0.03]",
-      )}
-    >
+    <div className="relative w-full max-w-2xl">
       <div
         className={cn(
           "flex items-end gap-2 rounded-[1.35rem] border bg-background px-3 py-2 transition-[border-color,box-shadow]",
@@ -113,9 +108,6 @@ export function HomeAssistantChat() {
           )}
         </button>
       </div>
-      <p className="mt-2 text-center text-[0.7rem] text-foreground/40">
-        KI kann sich irren. Kunden, Aufgaben und Termine werden nur geändert, wenn du es so anforderst.
-      </p>
     </div>
   );
 
@@ -123,9 +115,6 @@ export function HomeAssistantChat() {
     <div className="flex min-h-0 flex-1 flex-col bg-background md:min-h-[calc(100dvh-0px)]">
       {!hasMessages ? (
         <div className="flex flex-1 flex-col items-center justify-center px-4 pb-24 pt-8 md:px-8">
-          <p className="mb-8 text-center text-2xl font-semibold tracking-tight text-foreground/90 md:text-3xl">
-            Womit kann ich helfen?
-          </p>
           {composer}
         </div>
       ) : (
