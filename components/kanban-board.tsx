@@ -26,6 +26,22 @@ export type KanbanTaskDto = {
   created_at: string;
 };
 
+function KanbanBoardSkeleton() {
+  return (
+    <div className="flex max-w-7xl flex-col gap-6" aria-busy="true" aria-label="Board wird geladen">
+      <div className="space-y-2">
+        <div className="h-6 w-28 animate-pulse rounded bg-foreground/10" />
+        <div className="h-4 w-40 animate-pulse rounded bg-foreground/10" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-52 animate-pulse rounded-xl bg-foreground/10" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function resolveDropStatus(overId: string, taskList: KanbanTaskDto[]): KanbanStatus | null {
   if (KANBAN_COLUMNS.some((c) => c.id === overId)) {
     return overId as KanbanStatus;
@@ -85,6 +101,20 @@ function KanbanColumnBody({
 }
 
 export function KanbanBoard({ initialTasks }: { initialTasks: KanbanTaskDto[] }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return <KanbanBoardSkeleton />;
+  }
+
+  return <KanbanBoardReady initialTasks={initialTasks} />;
+}
+
+function KanbanBoardReady({ initialTasks }: { initialTasks: KanbanTaskDto[] }) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
   const [addingFor, setAddingFor] = useState<KanbanStatus | null>(null);
