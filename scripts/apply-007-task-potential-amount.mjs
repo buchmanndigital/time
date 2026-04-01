@@ -16,10 +16,24 @@ if (!url?.trim()) {
 const sql = neon(url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const raw = readFileSync(join(__dirname, "../sql/007-task-potential-amount.sql"), "utf8");
+
+/** Zeilen, die nur aus Kommentar/Leerzeichen bestehen, entfernen (kein „ganzer Block wegen -- oben“). */
+function sqlChunkToStatement(chunk) {
+  const lines = chunk.split(/\r?\n/);
+  const kept = [];
+  for (const line of lines) {
+    const t = line.trim();
+    if (t.length === 0) continue;
+    if (t.startsWith("--")) continue;
+    kept.push(line);
+  }
+  return kept.join("\n").trim();
+}
+
 const statements = raw
   .split(";")
-  .map((s) => s.trim())
-  .filter((s) => s.length > 0 && !s.startsWith("--"));
+  .map(sqlChunkToStatement)
+  .filter((s) => s.length > 0);
 
 for (const statement of statements) {
   await sql.query(statement);
