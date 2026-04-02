@@ -1,4 +1,9 @@
-import { GoogleGenerativeAI, type Content, type Part } from "@google/generative-ai";
+import {
+  GoogleGenerativeAI,
+  type Content,
+  type GenerateContentResult,
+  type Part,
+} from "@google/generative-ai";
 import { executeAssistantTool } from "@/lib/assistant/execute-tool";
 import { sanitizeAssistantReplyForDisplay } from "@/lib/assistant/sanitize-reply-for-display";
 import { buildAssistantSystemInstruction } from "@/lib/assistant/system-prompt";
@@ -30,6 +35,33 @@ const TOOL_PROGRESS_LABEL: Partial<Record<string, { start: string }>> = {
     start: "IMAP: E-Mail wird geladen …",
   },
 };
+
+/**
+ * Text aus der Modellantwort — manchmal liefert `text()` leer, obwohl Text-Parts existieren
+ * (v. a. nach Function-Calling-Runden).
+ */
+function extractModelReplyText(result: GenerateContentResult): string {
+  let fromMethod = "";
+  try {
+    fromMethod = result.response.text() ?? "";
+  } catch {
+    fromMethod = "";
+  }
+  const trimmed = fromMethod.trim();
+  if (trimmed) return trimmed;
+
+  const parts = result.response.candidates?.[0]?.content?.parts ?? [];
+  const chunks: string[] = [];
+  for (const p of parts) {
+    if (p && typeof p === "object" && "text" in p && typeof (p as { text: unknown }).text === "string") {
+      chunks.push((p as { text: string }).text);
+    }
+  }
+  return chunks.join("").trim();
+}
+
+const EMPTY_REPLY_FALLBACK =
+  "Nach den vorherigen Schritten lieferte das Modell keinen lesbaren Text. Bitte dieselbe Frage kurz wiederholen oder etwas konkreter formulieren.";
 
 function toolProgressFor(name: string, phase: "start" | "end"): ToolProgressEvent | null {
   if (phase === "start") {
@@ -111,12 +143,17 @@ export async function runAssistantTurn(params: {
         continue;
       }
 
-      let reply: string;
-      try {
-        reply = result.response.text();
-      } catch {
-        reply =
-          "Die Antwort konnte nicht gelesen werden (inhaltlich blockiert oder leer). Bitte formuliere kürzer oder anders.";
+      let reply = extractModelReplyText(result);
+      if (!reply) {
+        try {
+          result.response.text();
+        } catch {
+          reply =
+            "Die Antwort konnte nicht gelesen werden (inhaltlich blockiert oder Filter). Bitte kürzer oder neutraler formulieren.";
+        }
+      }
+      if (!reply.trim()) {
+        reply = EMPTY_REPLY_FALLBACK;
       }
       return { ok: true, reply: sanitizeAssistantReplyForDisplay(reply) };
     }

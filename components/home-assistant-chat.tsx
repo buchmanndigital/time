@@ -147,7 +147,6 @@ export function HomeAssistantChat() {
     const text = input.trim();
     if (!text || loading || hydrating) return;
 
-    const wasExistingChat = Boolean(chatParam);
     const prevSnapshot = messages;
 
     const userMsg: ChatMessage = {
@@ -207,14 +206,26 @@ export function HomeAssistantChat() {
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         setError(data.error ?? "Anfrage fehlgeschlagen.");
-        if (wasExistingChat) setMessages(prevSnapshot);
+        if (chatId) {
+          await fetch(`/api/assistant/chats/${encodeURIComponent(chatId)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: toStored(next) }),
+          }).catch(() => {});
+        }
         return;
       }
 
       const reader = res.body?.getReader();
       if (!reader) {
         setError("Antwort-Stream nicht verfügbar.");
-        if (wasExistingChat) setMessages(prevSnapshot);
+        if (chatId) {
+          await fetch(`/api/assistant/chats/${encodeURIComponent(chatId)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: toStored(next) }),
+          }).catch(() => {});
+        }
         return;
       }
 
@@ -277,13 +288,25 @@ export function HomeAssistantChat() {
 
       if (streamOutcome.error) {
         setError(streamOutcome.error);
-        if (wasExistingChat) setMessages(prevSnapshot);
+        if (chatId) {
+          await fetch(`/api/assistant/chats/${encodeURIComponent(chatId)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: toStored(next) }),
+          }).catch(() => {});
+        }
         return;
       }
       const replyText = streamOutcome.reply;
       if (replyText == null || replyText.length === 0) {
-        setError("Leere Antwort.");
-        if (wasExistingChat) setMessages(prevSnapshot);
+        setError("Leere Antwort vom Server.");
+        if (chatId) {
+          await fetch(`/api/assistant/chats/${encodeURIComponent(chatId)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: toStored(next) }),
+          }).catch(() => {});
+        }
         return;
       }
 
@@ -324,6 +347,13 @@ export function HomeAssistantChat() {
       router.refresh();
     } catch {
       setError("Netzwerkfehler.");
+      if (chatId) {
+        await fetch(`/api/assistant/chats/${encodeURIComponent(chatId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: toStored(next) }),
+        }).catch(() => {});
+      }
     } finally {
       setLoading(false);
       setToolStatus(null);
