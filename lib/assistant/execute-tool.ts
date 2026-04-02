@@ -11,6 +11,7 @@ import {
 import { optionalEuroFromToolArg } from "@/lib/parse-euro-amount";
 import { parseStartsAtInputToUtc } from "@/lib/parse-starts-at-utc";
 import { browserUseResearch } from "@/lib/assistant/browser-use-research";
+import { getImapConnectConfigForUser } from "@/lib/data/imap-accounts";
 import {
   deleteTaskForUser,
   findTaskByIdForUser,
@@ -20,6 +21,7 @@ import {
   updateTaskDetailsForUser,
   updateTaskStatusForUser,
 } from "@/lib/data/tasks";
+import { fetchInboxMessageBody, listRecentInboxMessages } from "@/lib/imap/read-mail";
 
 const MAX_TITLE = 500;
 const MAX_DESC = 20_000;
@@ -35,6 +37,11 @@ function revalidateApp() {
 function str(v: unknown): string {
   if (v == null) return "";
   return String(v);
+}
+
+function num(v: unknown, fallback: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 export async function executeAssistantTool(
@@ -375,6 +382,63 @@ export async function executeAssistantTool(
         }
         revalidateApp();
         return { ok: true, deleted_task_id: taskId };
+      }
+
+      case "list_imap_emails": {
+        const cfg = await getImapConnectConfigForUser(userId);
+        if (!cfg) {
+          return {
+            ok: false,
+            error:
+              "Kein E-Mail-Konto verbunden. Bitte unter Einstellungen ein IMAP-Postfach (z. B. Strato) nur zum Lesen eintragen.",
+          };
+        }
+        const limit = Math.min(30, Math.max(1, Math.round(num(rawArgs.limit, 12))));
+        const sd = rawArgs.since_days != null ? Math.round(num(rawArgs.since_days, 0)) : 0;
+        const sinceDays = sd > 0 ? Math.min(365, sd) : undefined;
+        const out = await listRecentInboxMessages(cfg, { limit, sinceDays });
+        if (!out.ok) {
+          return { ok: false, error: out.error };
+        }
+        return {
+          ok: true,
+          mailbox: "INBOX",
+          count: out.messages.length,
+          messages: out.messages.map((m) => ({
+            uid: m.uid,
+            subject: m.subject,
+            from: m.from,
+            date: m.date,
+          })),
+        };
+      }
+
+      case "get_imap_email_content": {
+        const cfg = await getImapConnectConfigForUser(userId);
+        if (!cfg) {
+          return {
+            ok: false,
+            error:
+              "Kein E-Mail-Konto verbunden. Bitte unter Einstellungen ein IMAP-Postfach eintragen.",
+          };
+        }
+        const uid = Math.round(num(rawArgs.uid, 0));
+        if (!Number.isInteger(uid) || uid <= 0) {
+          return { ok: false, error: "uid fehlt oder ist ungültig (positive IMAP-UID von list_imap_emails)." };
+        }
+        const maxChars = Math.min(24_000, Math.max(500, Math.round(num(rawArgs.max_chars, 12_000))));
+        const mail = await fetchInboxMessageBody(cfg, uid, maxChars);
+        if (!mail.ok) {
+          return { ok: false, error: mail.error };
+        }
+        return {
+          ok: true,
+          subject: mail.subject,
+          from: mail.from,
+          date: mail.date,
+          body: mail.body,
+          truncated: mail.truncated,
+        };
       }
 
       default:

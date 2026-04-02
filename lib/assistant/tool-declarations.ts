@@ -155,4 +155,41 @@ export const ASSISTANT_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
       required: ["task_id"],
     },
   },
+  {
+    name: "list_imap_emails",
+    description:
+      "Liest die zuletzt eingegangenen E-Mails aus dem verbundenen IMAP-Postfach (nur Lesen, z. B. Strato). Nur nutzbar, wenn der Nutzer E-Mail unter Einstellungen verknüpft hat. Liefert uid (für get_imap_email_content), Betreff, Absender, Datum. Keine UUIDs im Nutzertext ausgeben.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        limit: {
+          type: SchemaType.INTEGER,
+          description: "Max. Anzahl Mails (1–30, Standard 12).",
+        },
+        since_days: {
+          type: SchemaType.INTEGER,
+          description: "Optional: nur Mails der letzten X Tage (z. B. 14).",
+        },
+      },
+    },
+  },
+  {
+    name: "get_imap_email_content",
+    description:
+      "Lädt den Textinhalt einer konkreten E-Mail aus dem IMAP-Postfach (uid von list_imap_emails). Nur Lesen; Antwort den Nutzer kurz zusammenfassen, Zitate gekürzt.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        uid: {
+          type: SchemaType.INTEGER,
+          description: "IMAP-UID der Nachricht (von list_imap_emails).",
+        },
+        max_chars: {
+          type: SchemaType.INTEGER,
+          description: "Optional: max. Zeichen Body (500–24000, Standard 12000).",
+        },
+      },
+      required: ["uid"],
+    },
+  },
 ];

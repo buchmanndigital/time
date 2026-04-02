@@ -10,6 +10,7 @@
     "db:migrate-task-schedule": "node --env-file=.env.local scripts/apply-006-task-schedule.mjs",
     "db:migrate-task-potential-amount": "node --env-file=.env.local scripts/apply-007-task-potential-amount.mjs",
     "db:migrate-web-push": "node --env-file=.env.local scripts/apply-008-web-push.mjs",
+    "db:migrate-user-imap": "node --env-file=.env.local scripts/apply-009-user-imap.mjs",
     "push:generate-keys": "node scripts/generate-vapid-keys.mjs"
   },
   "dependencies": {
@@ -19,7 +20,9 @@
     "bcryptjs": "^3.0.3",
     "browser-use-sdk": "^3.4.0",
     "date-holidays": "^3.26.12",
+    "imapflow": "^1.2.18",
     "jose": "^6.2.2",
+    "mailparser": "^3.9.6",
     "next": "16.2.2",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -30,6 +33,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
+    "@types/mailparser": "^3.4.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

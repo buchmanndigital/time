@@ -20,6 +20,12 @@ const TOOL_PROGRESS_LABEL: Partial<Record<string, { start: string }>> = {
   web_research: {
     start: "Browser Use: Öffentliche Web-Recherche läuft (Browser in der Cloud) …",
   },
+  list_imap_emails: {
+    start: "IMAP: Posteingang wird gelesen …",
+  },
+  get_imap_email_content: {
+    start: "IMAP: E-Mail wird geladen …",
+  },
 };
 
 function toolProgressFor(name: string, phase: "start" | "end"): ToolProgressEvent | null {

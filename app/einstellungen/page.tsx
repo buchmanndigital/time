@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AuthenticatedAppShell } from "@/components/authenticated-app-shell";
 import { TaskNotificationSettingsPanel } from "@/components/task-notification-context";
+import { ImapEmailSettingsSection } from "@/components/imap-email-settings";
 import { WebPushSettingsSection } from "@/components/web-push-settings";
 import { getSession } from "@/lib/auth/session";
 
@@ -23,6 +24,8 @@ export default async function EinstellungenPage() {
         <TaskNotificationSettingsPanel headingLevel="h2" />
 
         <WebPushSettingsSection headingLevel="h2" />
+
+        <ImapEmailSettingsSection headingLevel="h2" />
       </div>
     </AuthenticatedAppShell>
   );
