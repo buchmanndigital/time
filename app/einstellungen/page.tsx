@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AuthenticatedAppShell } from "@/components/authenticated-app-shell";
 import { TaskNotificationSettingsPanel } from "@/components/task-notification-context";
+import { WebPushSettingsSection } from "@/components/web-push-settings";
 import { getSession } from "@/lib/auth/session";
 
 export default async function EinstellungenPage() {
@@ -20,6 +21,8 @@ export default async function EinstellungenPage() {
         </header>
 
         <TaskNotificationSettingsPanel headingLevel="h2" />
+
+        <WebPushSettingsSection headingLevel="h2" />
       </div>
     </AuthenticatedAppShell>
   );

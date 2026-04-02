@@ -14,6 +14,7 @@ import {
   computeDueNotifications,
   type NotifyTaskPayload,
 } from "@/lib/task-browser-notify";
+import { STORAGE_SKIP_CLIENT_POLL } from "@/lib/push/constants";
 import { cn } from "@/lib/utils/cn";
 
 export const TASK_NOTIFICATIONS_STORAGE_ENABLED = "time.taskNotifications.enabled";
@@ -108,6 +109,13 @@ export function TaskNotificationProvider({ children }: { children: ReactNode }) 
 
   const poll = useCallback(async () => {
     if (!canUseNotifications() || Notification.permission !== "granted") return;
+    try {
+      if (typeof localStorage !== "undefined") {
+        if (localStorage.getItem(STORAGE_SKIP_CLIENT_POLL) === "1") return;
+      }
+    } catch {
+      /* ignore */
+    }
     try {
       const res = await fetch("/api/tasks/notifications", { cache: "no-store" });
       if (!res.ok) return;
@@ -259,9 +267,9 @@ export function TaskNotificationSettingsPanel({
       </HeadingTag>
       <div className="space-y-2 rounded-xl border border-foreground/10 bg-foreground/[0.03] px-4 py-4">
         <p className="text-sm leading-relaxed text-foreground/55">
-          Kurz vor dem Termin (10&nbsp;Min.) und zum Start – nur wenn TIME in einem Tab offen ist. Es
-          ertönt ein kurzer Hinweiston. Alle Tabs zu schließen beendet die Hinweise (ohne
-          Push-Server).
+          Kurz vor dem Termin (10&nbsp;Min.) und zum Start, solange TIME in einem Tab mitläuft, inkl.
+          Hinweiston. Für Hinweise ohne offenen Tab richte unten <strong>Web-Push</strong> ein (Server
+          mit VAPID &amp; Cron nötig).
         </p>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           {enabled && permission === "granted" ? (

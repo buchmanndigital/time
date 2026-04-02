@@ -22,12 +22,19 @@ export function formatTaskStartBerlin(iso: string): string {
   }).format(d);
 }
 
-/** Pro Durchgang zu zeigende Mitteilungen (ohne localStorage-Dedupe). */
-export function computeDueNotifications(
-  tasks: NotifyTaskPayload[],
-  now: Date,
-): Array<{ kind: "pre" | "start"; title: string; body: string; tag: string }> {
-  const out: Array<{ kind: "pre" | "start"; title: string; body: string; tag: string }> = [];
+export type DueNotification = {
+  kind: "pre" | "start";
+  taskId: string;
+  /** ISO-String wie von der API (Dedupe / DB). */
+  startsAtIso: string;
+  title: string;
+  body: string;
+  tag: string;
+};
+
+/** Pro Durchgang zu zeigende Mitteilungen (ohne localStorage-/Server-Dedupe). */
+export function computeDueNotifications(tasks: NotifyTaskPayload[], now: Date): DueNotification[] {
+  const out: DueNotification[] = [];
   const nowMs = now.getTime();
 
   for (const task of tasks) {
@@ -42,6 +49,8 @@ export function computeDueNotifications(
       const when = formatTaskStartBerlin(task.starts_at);
       out.push({
         kind: "pre",
+        taskId: task.id,
+        startsAtIso: slot,
         title: `Demnächst: ${task.title}`,
         body: `Geplanter Start: ${when}`,
         tag: `time-task-pre:${task.id}:${slot}`,
@@ -53,6 +62,8 @@ export function computeDueNotifications(
       const when = formatTaskStartBerlin(task.starts_at);
       out.push({
         kind: "start",
+        taskId: task.id,
+        startsAtIso: slot,
         title: `Jetzt: ${task.title}`,
         body: `Start war vorgesehen um ${when}`,
         tag: `time-task-start:${task.id}:${slot}`,

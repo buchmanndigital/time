@@ -9,6 +9,17 @@ const geistSans = Geist({
 
 export const metadata: Metadata = {
   title: "TIME",
+  manifest: "/manifest.webmanifest",
+  themeColor: "#0d9488",
+  icons: {
+    icon: "/icon",
+    apple: "/icon",
+  },
+  appleWebApp: {
+    capable: true,
+    title: "TIME",
+    statusBarStyle: "default",
+  },
 };
 
 export default function RootLayout({

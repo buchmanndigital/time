@@ -1,0 +1,19 @@
+{
+  "name": "TIME",
+  "short_name": "TIME",
+  "description": "Aufgaben, Kalender, Kunden",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#0d9488",
+  "lang": "de",
+  "icons": [
+    {
+      "src": "/icon",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
