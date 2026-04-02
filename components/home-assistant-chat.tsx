@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useAssistantChats } from "@/components/assistant-chats-context";
+import { CHAT_MARKDOWN_COMPONENTS } from "@/components/chat-markdown-components";
 import { cn } from "@/lib/utils/cn";
 
 type ChatMessage = { id: string; role: "user" | "assistant"; content: string };
@@ -597,7 +598,9 @@ function MessageBody({ text, isUser }: { text: string; isUser: boolean }) {
         !isUser && "[&_a]:text-teal-700 dark:[&_a]:text-teal-400",
       )}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={CHAT_MARKDOWN_COMPONENTS}>
+        {text}
+      </ReactMarkdown>
     </div>
   );
 }
