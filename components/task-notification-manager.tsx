@@ -9,6 +9,19 @@ import { cn } from "@/lib/utils/cn";
 
 const STORAGE_ENABLED = "time.taskNotifications.enabled";
 const STORAGE_SENT_PREFIX = "time.taskNotifications.sent:";
+const NOTIFY_SOUND_SRC = "/sounds/event_notification.mp3";
+
+function playNotifySound() {
+  try {
+    const audio = new Audio(NOTIFY_SOUND_SRC);
+    audio.volume = 0.9;
+    void audio.play().catch(() => {
+      /* Autoplay-/Tab-Richtlinien */
+    });
+  } catch {
+    /* ignore */
+  }
+}
 
 function readSent(key: string): boolean {
   try {
@@ -67,6 +80,7 @@ export function TaskNotificationManager() {
             lang: "de",
           });
           markSent(dedupeKey);
+          playNotifySound();
         } catch {
           /* z. B. blockiert */
         }
@@ -151,7 +165,8 @@ export function TaskNotificationManager() {
       <p className="text-xs font-medium text-foreground/80">Aufgaben-Mitteilungen</p>
       <p className="text-[0.7rem] leading-relaxed text-foreground/50">
         Kurz vor dem Termin (10&nbsp;Min.) und zum Start – nur wenn diese Seite in einem Tab offen ist.
-        Alle Tabs dauerhaft zu schließen verhindert Hinweise (ohne Push-Server).
+        Es ertönt ein kurzer Hinweiston. Alle Tabs dauerhaft zu schließen verhindert Hinweise (ohne
+        Push-Server).
       </p>
       {enabled && permission === "granted" ? (
         <button
