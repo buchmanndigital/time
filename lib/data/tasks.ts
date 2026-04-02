@@ -324,3 +324,30 @@ export async function updateTaskScheduleForUser(
   if (!row) return null;
   return { ...row, potential_amount_eur: coercePotentialEurDb(row.potential_amount_eur) };
 }
+
+/** Für Browser-Erinnerungen: nur id, Titel, Start, Status. */
+export type TaskNotificationRow = {
+  id: string;
+  title: string;
+  starts_at: Date;
+  status: KanbanStatus;
+};
+
+/** Aufgaben mit Termin im Fenster (UTC), z. B. für Mitteilungen. */
+export async function listTasksScheduledInWindowForUser(
+  userId: string,
+  windowStartUtc: Date,
+  windowEndUtc: Date,
+): Promise<TaskNotificationRow[]> {
+  const sql = getSql();
+  const rows = (await sql`
+    SELECT id, title, starts_at, status
+    FROM tasks
+    WHERE user_id = ${userId}
+      AND starts_at IS NOT NULL
+      AND starts_at >= ${windowStartUtc}
+      AND starts_at <= ${windowEndUtc}
+    ORDER BY starts_at ASC
+  `) as TaskNotificationRow[];
+  return rows;
+}

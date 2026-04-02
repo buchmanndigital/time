@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoutForm } from "@/components/forms/logout-form";
+import { TaskNotificationManager } from "@/components/task-notification-manager";
 import { cn } from "@/lib/utils/cn";
 
 const LINKS = [
@@ -37,6 +38,7 @@ export function AppSidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           );
         })}
       </nav>
+      <TaskNotificationManager />
       <div className="border-t border-foreground/10 pt-4">
         <LogoutForm />
       </div>
