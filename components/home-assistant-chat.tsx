@@ -26,8 +26,14 @@ export function HomeAssistantChat() {
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hydrating, setHydrating] = useState(false);
+  const [chatTitle, setChatTitle] = useState("");
+  const [titleEditing, setTitleEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [titleSaving, setTitleSaving] = useState(false);
+  const [titleError, setTitleError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   const hasMessages = messages.length > 0;
   /** Thread-Ansicht auch bei ?chat= oder während Laden, damit nicht die leere Startansicht blinkt. */
@@ -40,8 +46,18 @@ export function HomeAssistantChat() {
   }, [messages, hasMessages, toolStatus, loading]);
 
   useEffect(() => {
+    if (titleEditing) {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    }
+  }, [titleEditing]);
+
+  useEffect(() => {
     if (!chatParam) {
       setMessages([]);
+      setChatTitle("");
+      setTitleEditing(false);
+      setTitleError(null);
       setLoadError(null);
       setHydrating(false);
       return;
@@ -64,10 +80,14 @@ export function HomeAssistantChat() {
           return;
         }
         const data = (await res.json()) as {
+          title?: string;
           messages?: { role: string; content: string }[];
         };
-        const raw = data.messages ?? [];
         if (cancelled) return;
+        setChatTitle(typeof data.title === "string" && data.title.trim() ? data.title : "Neuer Chat");
+        setTitleEditing(false);
+        setTitleError(null);
+        const raw = data.messages ?? [];
         setMessages(
           raw.map((m) => ({
             id: crypto.randomUUID(),
@@ -86,6 +106,42 @@ export function HomeAssistantChat() {
       cancelled = true;
     };
   }, [chatParam, router]);
+
+  const saveChatTitle = useCallback(async () => {
+    if (!chatParam || titleSaving || hydrating) return;
+    const t = titleDraft.trim();
+    if (!t) {
+      setTitleDraft(chatTitle);
+      setTitleEditing(false);
+      return;
+    }
+    if (t === chatTitle) {
+      setTitleEditing(false);
+      return;
+    }
+    setTitleSaving(true);
+    setTitleError(null);
+    try {
+      const res = await fetch(`/api/assistant/chats/${encodeURIComponent(chatParam)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: t }),
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        setTitleError(d.error ?? "Titel konnte nicht gespeichert werden.");
+        return;
+      }
+      setChatTitle(t);
+      setTitleDraft(t);
+      setTitleEditing(false);
+      await refreshChats();
+    } catch {
+      setTitleError("Netzwerkfehler.");
+    } finally {
+      setTitleSaving(false);
+    }
+  }, [chatParam, chatTitle, hydrating, refreshChats, titleDraft, titleSaving]);
 
   const send = useCallback(async () => {
     const text = input.trim();
@@ -248,9 +304,20 @@ export function HomeAssistantChat() {
         if (!patchFull.ok) {
           setError("Antwort konnte nicht gespeichert werden.");
         }
-        await fetch(`/api/assistant/chats/${encodeURIComponent(chatId)}/title`, {
-          method: "POST",
-        }).catch(() => {});
+        try {
+          const tr = await fetch(`/api/assistant/chats/${encodeURIComponent(chatId)}/title`, {
+            method: "POST",
+          });
+          if (tr.ok) {
+            const td = (await tr.json().catch(() => ({}))) as { title?: string };
+            if (typeof td.title === "string" && td.title.trim()) {
+              setChatTitle(td.title);
+              setTitleDraft(td.title);
+            }
+          }
+        } catch {
+          /* optional */
+        }
         await refreshChats();
       }
 
@@ -330,6 +397,69 @@ export function HomeAssistantChat() {
         </div>
       ) : (
         <>
+          {chatParam ? (
+            <div className="shrink-0 border-b border-foreground/10 bg-background/95 px-3 py-3 backdrop-blur-sm md:px-8">
+              <div className="mx-auto max-w-2xl">
+                <label className="sr-only" htmlFor="chat-title-input">
+                  Chat-Titel
+                </label>
+                {titleEditing ? (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="chat-title-input"
+                        ref={titleInputRef}
+                        value={titleDraft}
+                        onChange={(e) => setTitleDraft(e.target.value)}
+                        onBlur={() => void saveChatTitle()}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void saveChatTitle();
+                          }
+                          if (e.key === "Escape") {
+                            setTitleDraft(chatTitle);
+                            setTitleEditing(false);
+                            setTitleError(null);
+                          }
+                        }}
+                        maxLength={200}
+                        disabled={titleSaving || hydrating}
+                        className="min-w-0 flex-1 rounded-lg border border-foreground/15 bg-background px-3 py-2 text-base font-semibold text-foreground outline-none focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20 disabled:opacity-60"
+                      />
+                      {titleSaving ? (
+                        <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-teal-600/30 border-t-teal-600" />
+                      ) : null}
+                    </div>
+                    {titleError ? (
+                      <p className="text-xs text-red-600 dark:text-red-300">{titleError}</p>
+                    ) : (
+                      <p className="text-xs text-foreground/45">Enter speichert, Esc bricht ab.</p>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTitleDraft(chatTitle);
+                      setTitleError(null);
+                      setTitleEditing(true);
+                    }}
+                    disabled={hydrating}
+                    className="group flex w-full max-w-full items-center gap-2 rounded-lg px-1 py-1 text-left transition-colors hover:bg-foreground/5 disabled:opacity-50"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">
+                      {hydrating ? "…" : chatTitle.trim() || "Neuer Chat"}
+                    </span>
+                    <span className="shrink-0 text-xs font-medium text-teal-700 opacity-80 group-hover:opacity-100 dark:text-teal-400">
+                      Titel ändern
+                    </span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : null}
+
           <div className="flex-1 overflow-y-auto px-3 py-6 md:px-8">
             <div className="mx-auto flex max-w-2xl flex-col gap-5">
               {hydrating ? (

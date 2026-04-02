@@ -4,6 +4,7 @@ import {
   deleteAssistantChatForUser,
   findAssistantChatForUser,
   updateAssistantChatMessages,
+  updateAssistantChatTitleManual,
   validateMessagesForStorage,
 } from "@/lib/data/assistant-chats";
 import { isUUID } from "@/lib/utils/is-uuid";
@@ -51,19 +52,40 @@ export async function PATCH(req: Request, { params }: RouteParams) {
   } catch {
     return NextResponse.json({ error: "Ungültiger JSON-Body." }, { status: 400 });
   }
-  const rawMessages = (body as Record<string, unknown>)?.messages;
-  const messages = validateMessagesForStorage(rawMessages);
-  if (messages === null) {
-    return NextResponse.json({ error: "Ungültiges messages-Format." }, { status: 400 });
-  }
-  if (messages.length === 0) {
-    return NextResponse.json({ error: "messages darf nicht leer sein." }, { status: 400 });
+  const o = body as Record<string, unknown>;
+  const hasTitle = "title" in o;
+  const hasMessages = "messages" in o;
+
+  if (!hasTitle && !hasMessages) {
+    return NextResponse.json({ error: "title oder messages erforderlich." }, { status: 400 });
   }
 
-  const ok = await updateAssistantChatMessages(chatId, session.userId, messages);
-  if (!ok) {
-    return NextResponse.json({ error: "Chat nicht gefunden." }, { status: 404 });
+  if (hasTitle) {
+    const rawTitle = o.title;
+    const t = typeof rawTitle === "string" ? rawTitle.trim() : "";
+    if (!t || t.length > 200) {
+      return NextResponse.json({ error: "Titel: 1–200 Zeichen." }, { status: 400 });
+    }
+    const titleOk = await updateAssistantChatTitleManual(chatId, session.userId, t);
+    if (!titleOk) {
+      return NextResponse.json({ error: "Chat nicht gefunden." }, { status: 404 });
+    }
   }
+
+  if (hasMessages) {
+    const messages = validateMessagesForStorage(o.messages);
+    if (messages === null || messages.length === 0) {
+      return NextResponse.json(
+        { error: "Ungültige oder leere messages." },
+        { status: 400 },
+      );
+    }
+    const msgOk = await updateAssistantChatMessages(chatId, session.userId, messages);
+    if (!msgOk) {
+      return NextResponse.json({ error: "Chat nicht gefunden." }, { status: 404 });
+    }
+  }
+
   return NextResponse.json({ ok: true });
 }
 

@@ -127,6 +127,24 @@ export async function setAssistantChatTitleAi(
   return rows.length > 0;
 }
 
+/** Manueller Titel aus der UI — verhindert, dass die KI den Titel später überschreibt. */
+export async function updateAssistantChatTitleManual(
+  chatId: string,
+  userId: string,
+  title: string,
+): Promise<boolean> {
+  const trimmed = title.trim().slice(0, 200);
+  if (!trimmed) return false;
+  const sql = getSql();
+  const rows = (await sql`
+    UPDATE assistant_chats
+    SET title = ${trimmed}, ai_title_done = TRUE, updated_at = NOW()
+    WHERE id = ${chatId} AND user_id = ${userId}
+    RETURNING id
+  `) as { id: string }[];
+  return rows.length > 0;
+}
+
 export async function deleteAssistantChatForUser(chatId: string, userId: string): Promise<boolean> {
   const sql = getSql();
   const rows = (await sql`
