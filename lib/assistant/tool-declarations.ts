@@ -158,13 +158,13 @@ export const ASSISTANT_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: "list_imap_folders",
     description:
-      "Listet alle IMAP-Ordner des verbundenen Postfachs mit exaktem Pfad (path). Zuerst nutzen, wenn der Nutzer Mails aus Unterordnern will (Webmail-Ordner ≠ immer gleicher Name: Pfad exakt von hier übernehmen). delimiter zeigt die Hierarchie-Trennung (oft Punkt).",
+      "Listet alle IMAP-Ordner mit exaktem path (für list_imap_emails). Pflicht-Start bei fast jeder E-Mail-Suche: Nutzer legen Korrespondenz oft in Unterordnern (Kunden, Projekte). Nach list_customers o. Ä. Ordnernamen mit Kundennamen abgleichen; dann passende Pfade für list_imap_emails nutzen. delimiter = Hierarchie (oft Punkt).",
     parameters: { type: SchemaType.OBJECT, properties: {} },
   },
   {
     name: "list_imap_emails",
     description:
-      "Liest die neuesten E-Mails aus einem Ordner des verbundenen IMAP-Postfachs (nur Lesen, z. B. Strato). Standard-Ordner Posteingang: mailbox weglassen oder INBOX. Für andere Ordner exakten path von list_imap_folders verwenden. uid ist nur innerhalb dieses Ordners gültig. Keine UUIDs im Nutzertext ausgeben.",
+      "Neueste Mails aus **einem** Ordner. mailbox leer = nur Posteingang (INBOX). Bei Fragen nach Mails zu einem Kunden/Thema: nicht nur INBOX — mehrere Aufrufe mit verschiedenen mailbox-Pfaden (von list_imap_folders), bis relevante Ordner geprüft sind. uid nur innerhalb dieses Ordners; für get_imap_email_content dieselbe mailbox.",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
