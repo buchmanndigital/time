@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { AuthenticatedAppShell } from "@/components/authenticated-app-shell";
 import { AuthStatus } from "@/components/auth-status";
 import { HomeAssistantChat } from "@/components/home-assistant-chat";
@@ -21,7 +22,15 @@ export async function HomeContent() {
 
   return (
     <AuthenticatedAppShell userEmail={session.email}>
-      <HomeAssistantChat />
+      <Suspense
+        fallback={
+          <div className="flex flex-1 items-center justify-center py-20 text-sm text-foreground/50">
+            Chat wird geladen …
+          </div>
+        }
+      >
+        <HomeAssistantChat />
+      </Suspense>
     </AuthenticatedAppShell>
   );
 }

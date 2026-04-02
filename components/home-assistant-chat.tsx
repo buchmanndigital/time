@@ -1,25 +1,37 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useAssistantChats } from "@/components/assistant-chats-context";
 import { cn } from "@/lib/utils/cn";
 
 type ChatMessage = { id: string; role: "user" | "assistant"; content: string };
 
+function toStored(messages: ChatMessage[]): { role: "user" | "assistant"; content: string }[] {
+  return messages.map((m) => ({ role: m.role, content: m.content }));
+}
+
 export function HomeAssistantChat() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const chatParam = searchParams.get("chat");
+  const { refreshChats } = useAssistantChats();
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  /** Länger laufende Tool-Aktion (z. B. Browser Use Web-Recherche), live per Stream */
   const [toolStatus, setToolStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [hydrating, setHydrating] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const hasMessages = messages.length > 0;
+  /** Thread-Ansicht auch bei ?chat= oder während Laden, damit nicht die leere Startansicht blinkt. */
+  const showChatLayout = hasMessages || hydrating || Boolean(chatParam);
 
   useEffect(() => {
     if (hasMessages) {
@@ -27,23 +39,106 @@ export function HomeAssistantChat() {
     }
   }, [messages, hasMessages, toolStatus, loading]);
 
+  useEffect(() => {
+    if (!chatParam) {
+      setMessages([]);
+      setLoadError(null);
+      setHydrating(false);
+      return;
+    }
+
+    let cancelled = false;
+    setHydrating(true);
+    setLoadError(null);
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/assistant/chats/${encodeURIComponent(chatParam)}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          if (!cancelled) {
+            setLoadError("Chat nicht gefunden.");
+            router.replace("/");
+          }
+          return;
+        }
+        const data = (await res.json()) as {
+          messages?: { role: string; content: string }[];
+        };
+        const raw = data.messages ?? [];
+        if (cancelled) return;
+        setMessages(
+          raw.map((m) => ({
+            id: crypto.randomUUID(),
+            role: m.role === "assistant" ? "assistant" : "user",
+            content: typeof m.content === "string" ? m.content : "",
+          })),
+        );
+      } catch {
+        if (!cancelled) setLoadError("Chat konnte nicht geladen werden.");
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chatParam, router]);
+
   const send = useCallback(async () => {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || loading || hydrating) return;
+
+    const wasExistingChat = Boolean(chatParam);
+    const prevSnapshot = messages;
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       content: text,
     };
-    const next = [...messages, userMsg];
+    const next = [...prevSnapshot, userMsg];
     setMessages(next);
     setInput("");
     setLoading(true);
     setToolStatus(null);
     setError(null);
 
+    let chatId = chatParam;
+
     try {
+      if (!chatId) {
+        const cr = await fetch("/api/assistant/chats", { method: "POST" });
+        if (!cr.ok) {
+          const d = (await cr.json().catch(() => ({}))) as { error?: string };
+          setError(d.error ?? "Chat konnte nicht angelegt werden.");
+          setMessages(prevSnapshot);
+          return;
+        }
+        const created = (await cr.json()) as { id?: string };
+        if (!created.id) {
+          setError("Ungültige Server-Antwort.");
+          setMessages(prevSnapshot);
+          return;
+        }
+        chatId = created.id;
+        const patchUser = await fetch(`/api/assistant/chats/${encodeURIComponent(chatId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: toStored([userMsg]) }),
+        });
+        if (!patchUser.ok) {
+          const d = (await patchUser.json().catch(() => ({}))) as { error?: string };
+          setError(d.error ?? "Nachricht konnte nicht gespeichert werden.");
+          setMessages(prevSnapshot);
+          return;
+        }
+        router.replace(`/?chat=${encodeURIComponent(chatId)}`);
+        await refreshChats();
+      }
+
       const res = await fetch("/api/assistant/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -56,12 +151,14 @@ export function HomeAssistantChat() {
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         setError(data.error ?? "Anfrage fehlgeschlagen.");
+        if (wasExistingChat) setMessages(prevSnapshot);
         return;
       }
 
       const reader = res.body?.getReader();
       if (!reader) {
         setError("Antwort-Stream nicht verfügbar.");
+        if (wasExistingChat) setMessages(prevSnapshot);
         return;
       }
 
@@ -124,17 +221,39 @@ export function HomeAssistantChat() {
 
       if (streamOutcome.error) {
         setError(streamOutcome.error);
+        if (wasExistingChat) setMessages(prevSnapshot);
         return;
       }
       const replyText = streamOutcome.reply;
       if (replyText == null || replyText.length === 0) {
         setError("Leere Antwort.");
+        if (wasExistingChat) setMessages(prevSnapshot);
         return;
       }
-      setMessages((prev) => [
-        ...prev,
-        { id: crypto.randomUUID(), role: "assistant", content: replyText },
-      ]);
+
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: replyText,
+      };
+      const final = [...next, assistantMsg];
+      setMessages(final);
+
+      if (chatId) {
+        const patchFull = await fetch(`/api/assistant/chats/${encodeURIComponent(chatId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: toStored(final) }),
+        });
+        if (!patchFull.ok) {
+          setError("Antwort konnte nicht gespeichert werden.");
+        }
+        await fetch(`/api/assistant/chats/${encodeURIComponent(chatId)}/title`, {
+          method: "POST",
+        }).catch(() => {});
+        await refreshChats();
+      }
+
       router.refresh();
     } catch {
       setError("Netzwerkfehler.");
@@ -143,7 +262,7 @@ export function HomeAssistantChat() {
       setToolStatus(null);
       textareaRef.current?.focus();
     }
-  }, [input, loading, messages, router]);
+  }, [chatParam, hydrating, input, loading, messages, refreshChats, router]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -151,6 +270,8 @@ export function HomeAssistantChat() {
       void send();
     }
   };
+
+  const composerDisabled = loading || hydrating;
 
   const composer = (
     <div className="relative w-full max-w-2xl">
@@ -166,15 +287,17 @@ export function HomeAssistantChat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Nachricht an den Assistenten …"
-          disabled={loading}
+          placeholder={
+            hydrating ? "Chat wird geladen …" : "Nachricht an den Assistenten …"
+          }
+          disabled={composerDisabled}
           rows={1}
           className="max-h-48 min-h-[2.75rem] w-full resize-none bg-transparent py-2.5 pl-2 pr-2 text-base leading-relaxed text-foreground outline-none placeholder:text-foreground/35 disabled:opacity-60 md:text-[0.95rem]"
         />
         <button
           type="button"
           onClick={() => void send()}
-          disabled={loading || !input.trim()}
+          disabled={composerDisabled || !input.trim()}
           className="mb-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-600 text-white transition-opacity hover:bg-teal-500 disabled:cursor-not-allowed disabled:opacity-35 dark:bg-teal-600 dark:hover:bg-teal-500"
           aria-label="Senden"
         >
@@ -190,7 +313,13 @@ export function HomeAssistantChat() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background md:min-h-[calc(100dvh-0px)]">
-      {!hasMessages ? (
+      {loadError ? (
+        <div className="px-4 py-2 text-center text-sm text-red-600 dark:text-red-300" role="alert">
+          {loadError}
+        </div>
+      ) : null}
+
+      {!showChatLayout ? (
         <div className="flex flex-1 flex-col items-center justify-center px-4 pb-24 pt-8 md:px-8">
           {composer}
           {loading && toolStatus ? (
@@ -203,6 +332,9 @@ export function HomeAssistantChat() {
         <>
           <div className="flex-1 overflow-y-auto px-3 py-6 md:px-8">
             <div className="mx-auto flex max-w-2xl flex-col gap-5">
+              {hydrating ? (
+                <p className="text-center text-sm text-foreground/45">Verlauf wird geladen …</p>
+              ) : null}
               {messages.map((m) => (
                 <div
                   key={m.id}
@@ -254,7 +386,7 @@ export function HomeAssistantChat() {
         </>
       )}
 
-      {!hasMessages && error ? (
+      {!showChatLayout && error ? (
         <div className="mx-auto mt-4 w-full max-w-xl px-4">
           <p
             className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-800 dark:text-red-200"

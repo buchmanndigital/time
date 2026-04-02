@@ -11,6 +11,7 @@
     "db:migrate-task-potential-amount": "node --env-file=.env.local scripts/apply-007-task-potential-amount.mjs",
     "db:migrate-web-push": "node --env-file=.env.local scripts/apply-008-web-push.mjs",
     "db:migrate-user-imap": "node --env-file=.env.local scripts/apply-009-user-imap.mjs",
+    "db:migrate-assistant-chats": "node --env-file=.env.local scripts/apply-010-assistant-chats.mjs",
     "push:generate-keys": "node scripts/generate-vapid-keys.mjs"
   },
   "dependencies": {

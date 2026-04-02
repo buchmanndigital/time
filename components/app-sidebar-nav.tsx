@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
+import { AssistantChatsSidebarSection } from "@/components/assistant-chats-sidebar-section";
 import { LogoutForm } from "@/components/forms/logout-form";
 import { cn } from "@/lib/utils/cn";
 
@@ -39,6 +41,17 @@ export function AppSidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           );
         })}
       </nav>
+
+      <Suspense
+        fallback={
+          <p className="text-xs text-foreground/40" aria-hidden>
+            Chats laden …
+          </p>
+        }
+      >
+        <AssistantChatsSidebarSection onNavigate={onNavigate} />
+      </Suspense>
+
       <div className="border-t border-foreground/10 pt-4">
         <LogoutForm />
       </div>
