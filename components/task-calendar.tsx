@@ -549,7 +549,7 @@ type Props = {
 
 export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
   const [clock, setClock] = useState(() => new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth());
   const [weekStartMonday, setWeekStartMonday] = useState(() => startOfWeekMonday(new Date()));
@@ -829,20 +829,6 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
               <button
                 type="button"
                 role="tab"
-                aria-selected={viewMode === "month"}
-                onClick={openMonthView}
-                className={cn(
-                  "rounded-lg px-3 py-2 text-sm font-medium transition-colors max-md:px-2.5 max-md:py-1.5 max-md:text-xs",
-                  viewMode === "month"
-                    ? "bg-teal-500/15 text-teal-800 dark:text-teal-200"
-                    : "text-foreground/60 hover:text-foreground",
-                )}
-              >
-                Monat
-              </button>
-              <button
-                type="button"
-                role="tab"
                 aria-selected={viewMode === "week"}
                 onClick={switchToWeekView}
                 className={cn(
@@ -853,6 +839,20 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
                 )}
               >
                 Woche
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === "month"}
+                onClick={openMonthView}
+                className={cn(
+                  "rounded-lg px-3 py-2 text-sm font-medium transition-colors max-md:px-2.5 max-md:py-1.5 max-md:text-xs",
+                  viewMode === "month"
+                    ? "bg-teal-500/15 text-teal-800 dark:text-teal-200"
+                    : "text-foreground/60 hover:text-foreground",
+                )}
+              >
+                Monat
               </button>
             </div>
 
