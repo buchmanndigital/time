@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { updateKanbanTaskSchedule } from "@/app/actions/tasks";
 import type { KanbanTaskDto } from "@/lib/kanban-task-dto";
 import { formatPotentialEurDe } from "@/lib/format-potential-eur";
@@ -26,6 +26,7 @@ import {
   utcIsoToLocalDate,
   utcIsoToLocalTime,
 } from "@/lib/task-schedule-format";
+import { getBayernHolidayMapBetween } from "@/lib/bayern-holidays";
 import { cn } from "@/lib/utils/cn";
 
 const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as const;
@@ -100,6 +101,16 @@ function formatWeekRangeTitle(monday: Date, sunday: Date): string {
   ).format(monday);
   const endFmt = new Intl.DateTimeFormat("de-DE", withYear).format(sunday);
   return `${startFmt} – ${endFmt}`;
+}
+
+/** Kompakter Monats-Titel für Mobile (eine Zeile), wenn die Woche im selben Monat liegt. */
+function formatWeekMonthYearTitleMobile(monday: Date, sunday: Date): string {
+  const sameMonth =
+    monday.getMonth() === sunday.getMonth() && monday.getFullYear() === sunday.getFullYear();
+  if (sameMonth) {
+    return new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" }).format(monday);
+  }
+  return formatWeekRangeTitle(monday, sunday);
 }
 
 const MONTH_DRAG_THRESHOLD_PX = 6;
@@ -252,6 +263,7 @@ function formatHourLabelDe(hour: number): string {
 function GoogleStyleWeekBody({
   weekDays,
   byDay,
+  holidayByYmd,
   clock,
   onSelectTask,
   onSchedulePreview,
@@ -259,6 +271,7 @@ function GoogleStyleWeekBody({
 }: {
   weekDays: Date[];
   byDay: Map<string, KanbanTaskDto[]>;
+  holidayByYmd: Map<string, string>;
   clock: Date;
   onSelectTask: (t: KanbanTaskDto) => void;
   onSchedulePreview: (patch: SchedulePreviewPatch | null) => void;
@@ -268,6 +281,7 @@ function GoogleStyleWeekBody({
     durationMin: number | null,
   ) => Promise<boolean>;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const gridStartMin = WEEK_GRID_FIRST_HOUR * 60;
   const gridEndMin = WEEK_GRID_LAST_HOUR * 60;
   const gridHeightPx = (WEEK_GRID_LAST_HOUR - WEEK_GRID_FIRST_HOUR) * WEEK_PX_PER_HOUR;
@@ -280,49 +294,126 @@ function GoogleStyleWeekBody({
     [],
   );
 
+  const clockDayKey = ymdKey(clock);
+  const todayColumnIndex = useMemo(
+    () => weekDays.findIndex((d) => ymdKey(d) === clockDayKey),
+    [weekDays, clockDayKey],
+  );
+  const weekKey = useMemo(() => weekDays.map(ymdKey).join("|"), [weekDays]);
+
+  const centerTodayColumnMobile = useCallback(() => {
+    if (todayColumnIndex < 0) return;
+    if (!window.matchMedia("(max-width: 767px)").matches) return;
+    const sc = scrollRef.current;
+    if (!sc) return;
+    const dayEl = sc.querySelector(
+      `[data-week-day-header="${todayColumnIndex}"]`,
+    ) as HTMLElement | null;
+    if (!dayEl) return;
+    const dayRect = dayEl.getBoundingClientRect();
+    const scRect = sc.getBoundingClientRect();
+    const dayLeftInScroller = dayRect.left - scRect.left + sc.scrollLeft;
+    const target = dayLeftInScroller + dayRect.width / 2 - sc.clientWidth / 2;
+    const maxScroll = Math.max(0, sc.scrollWidth - sc.clientWidth);
+    sc.scrollLeft = Math.max(0, Math.min(target, maxScroll));
+  }, [todayColumnIndex]);
+
+  useLayoutEffect(() => {
+    if (todayColumnIndex < 0) return;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(centerTodayColumnMobile);
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [weekKey, todayColumnIndex, centerTodayColumnMobile]);
+
+  useEffect(() => {
+    if (todayColumnIndex < 0) return;
+    const mq = window.matchMedia("(max-width: 767px)");
+    const onResizeOrBreakpoint = () => centerTodayColumnMobile();
+    window.addEventListener("resize", onResizeOrBreakpoint);
+    mq.addEventListener("change", onResizeOrBreakpoint);
+    return () => {
+      window.removeEventListener("resize", onResizeOrBreakpoint);
+      mq.removeEventListener("change", onResizeOrBreakpoint);
+    };
+  }, [weekKey, todayColumnIndex, centerTodayColumnMobile]);
+
   return (
-    <div className="max-h-[min(75vh,52rem)] overflow-auto rounded-xl border border-foreground/10 bg-background">
-      <div className="min-w-[720px]">
+    <div
+      ref={scrollRef}
+      className="max-h-[min(78vh,52rem)] max-md:max-h-[min(82vh,56rem)] overflow-auto rounded-xl border border-foreground/10 bg-background max-md:rounded-lg"
+    >
+      <div className="min-w-[min(100%,720px)] max-md:min-w-[52rem]">
         <div className="sticky top-0 z-30 flex border-b border-foreground/10 bg-background">
-          <div className="sticky left-0 z-40 w-[3.25rem] shrink-0 border-r border-foreground/10 bg-background sm:w-14" />
+          <div className="sticky left-0 z-40 w-11 shrink-0 border-r border-foreground/10 bg-background max-md:w-9 sm:w-14" />
           {weekDays.map((date, idx) => {
             const today = isSameDay(date, clock);
+            const ymd = ymdKey(date);
+            const holidayName = holidayByYmd.get(ymd);
             return (
               <div
-                key={ymdKey(date)}
+                key={ymd}
                 data-week-day={idx}
-                className="min-w-0 flex-1 border-l border-foreground/10 py-2.5 text-center"
+                data-week-day-header={idx}
+                title={holidayName ?? undefined}
+                className={cn(
+                  "relative min-w-0 flex-1 border-l py-1 text-center max-md:py-1 sm:py-2.5",
+                  holidayName
+                    ? "border-amber-500/25 bg-gradient-to-b from-amber-500/[0.12] via-amber-500/[0.04] to-transparent dark:from-amber-500/15 dark:via-amber-500/5"
+                    : "border-foreground/10",
+                )}
               >
+                {holidayName ? (
+                  <span
+                    className="pointer-events-none absolute right-0.5 top-0.5 text-[0.45rem] leading-none text-amber-600/80 dark:text-amber-400/90"
+                    aria-hidden
+                  >
+                    ◆
+                  </span>
+                ) : null}
                 <p
                   className={cn(
-                    "text-[0.7rem] font-semibold uppercase tracking-wide",
+                    "text-[0.6rem] font-semibold uppercase tracking-wide max-md:text-[0.55rem]",
                     today ? "text-teal-600 dark:text-teal-400" : "text-foreground/45",
                   )}
                 >
                   {WEEKDAYS[idx]}
                 </p>
-                <p
-                  className={cn(
-                    "mt-0.5 text-xl font-semibold tabular-nums sm:text-2xl",
-                    today ? "text-teal-600 dark:text-teal-400" : "text-foreground",
-                  )}
-                >
-                  {date.getDate()}
-                </p>
+                <div className="mt-0.5 flex justify-center max-md:mt-0">
+                  <span
+                    className={cn(
+                      "inline-flex min-h-[1.375rem] min-w-[1.375rem] items-center justify-center text-base font-semibold tabular-nums max-md:min-h-[1.5rem] max-md:min-w-[1.5rem] max-md:text-sm sm:min-h-0 sm:min-w-0 sm:text-xl md:text-2xl",
+                      today
+                        ? "rounded-full bg-teal-500 px-0 text-white shadow-sm dark:bg-teal-600 max-md:px-1.5 sm:rounded-none sm:bg-transparent sm:px-0 sm:text-teal-600 sm:shadow-none sm:dark:bg-transparent sm:dark:text-teal-400"
+                        : "text-foreground",
+                    )}
+                  >
+                    {date.getDate()}
+                  </span>
+                </div>
+                {holidayName ? (
+                  <p className="mx-auto mt-0.5 max-w-[5.5rem] px-0.5 text-[0.5rem] font-medium leading-tight text-amber-800 dark:text-amber-200/95 max-md:max-w-[6.5rem] max-md:text-[0.48rem] sm:text-[0.52rem]">
+                    {holidayName}
+                  </p>
+                ) : null}
               </div>
             );
           })}
         </div>
 
         <div className="flex">
-          <div className="sticky left-0 z-20 w-[3.25rem] shrink-0 border-r border-foreground/10 bg-background sm:w-14">
+          <div className="sticky left-0 z-20 w-11 shrink-0 border-r border-foreground/10 bg-background max-md:w-9 sm:w-14">
             {hours.map((h) => (
               <div
                 key={h}
-                className="box-border border-b border-foreground/10 pr-1 text-right"
+                className="box-border border-b border-foreground/10 pr-0.5 text-right max-md:pr-0"
                 style={{ height: WEEK_PX_PER_HOUR }}
               >
-                <span className="relative -top-2 inline-block text-[0.62rem] tabular-nums leading-none text-foreground/45 sm:text-[0.68rem]">
+                <span className="relative -top-2 inline-block text-[0.55rem] tabular-nums leading-none text-foreground/45 max-md:-top-1.5 sm:text-[0.68rem]">
                   {formatHourLabelDe(h)}
                 </span>
               </div>
@@ -334,6 +425,7 @@ function GoogleStyleWeekBody({
               const key = ymdKey(date);
               const dayTasks = byDay.get(key) ?? [];
               const today = isSameDay(date, clock);
+              const holidayHere = holidayByYmd.get(key);
 
               const raw: Omit<DayLayoutItem, "lane" | "colSpan">[] = [];
               for (const task of dayTasks) {
@@ -360,7 +452,12 @@ function GoogleStyleWeekBody({
                 <div
                   key={key}
                   data-week-day={dayIdx}
-                  className="relative min-w-[5.5rem] flex-1 border-l border-foreground/10 bg-background"
+                  className={cn(
+                    "relative min-w-[5.5rem] max-md:min-w-[7rem] flex-1 border-l bg-background",
+                    holidayHere
+                      ? "border-amber-500/15 bg-[linear-gradient(180deg,rgba(245,158,11,0.07)_0%,transparent_22%,transparent_100%),linear-gradient(180deg,rgba(20,184,166,0.04)_0%,transparent_35%)] dark:border-amber-400/20"
+                      : "border-foreground/10",
+                  )}
                   style={{ height: gridHeightPx }}
                 >
                   {hours.map((_, i) => (
@@ -423,13 +520,9 @@ function GoogleStyleWeekBody({
   );
 }
 
-function StatusLegend({
-  unplannedCount,
-}: {
-  unplannedCount: number;
-}) {
+function StatusLegend({ unplannedCount }: { unplannedCount: number }) {
   return (
-    <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-foreground/10 px-1 pt-5 text-xs text-foreground/50">
+    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-foreground/10 px-0 pt-3 text-[0.65rem] text-foreground/50 max-md:mt-3 max-md:gap-1.5 max-md:pt-2 sm:mt-6 sm:gap-3 sm:px-1 sm:pt-5 sm:text-xs">
       <span className="font-medium text-foreground/60">Status:</span>
       {(["open", "in_progress", "paused", "done"] as const).map((s) => {
         const m = statusMeta(s);
@@ -597,6 +690,21 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
   const weekDays = useMemo(() => getWeekFromMonday(weekStartMonday), [weekStartMonday]);
   const weekSunday = weekDays[6]!;
 
+  const holidayByYmd = useMemo(() => {
+    if (viewMode === "month") {
+      if (!grid.length) return new Map<string, string>();
+      let minT = grid[0]!.date.getTime();
+      let maxT = minT;
+      for (const { date } of grid) {
+        const t = date.getTime();
+        if (t < minT) minT = t;
+        if (t > maxT) maxT = t;
+      }
+      return getBayernHolidayMapBetween(new Date(minT), new Date(maxT));
+    }
+    return getBayernHolidayMapBetween(weekDays[0]!, weekDays[6]!);
+  }, [viewMode, grid, weekDays]);
+
   const monthTitle = new Intl.DateTimeFormat("de-DE", {
     month: "long",
     year: "numeric",
@@ -604,6 +712,7 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
 
   const primaryTitle =
     viewMode === "month" ? monthTitle : formatWeekRangeTitle(weekStartMonday, weekSunday);
+  const weekTitleMobile = formatWeekMonthYearTitleMobile(weekStartMonday, weekSunday);
 
   function goPrevMonth() {
     if (month === 0) {
@@ -669,16 +778,33 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
         aria-hidden
       />
 
-      <div className="relative overflow-hidden rounded-[1.75rem] bg-background/80 backdrop-blur-xl dark:bg-background/55">
-        <header className="relative flex flex-col gap-5 border-b border-foreground/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-6">
-          <div>
-            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-teal-600 dark:text-teal-400">
+      <div className="relative overflow-hidden rounded-2xl bg-background/80 backdrop-blur-xl max-md:rounded-xl dark:bg-background/55 md:rounded-[1.75rem]">
+        <header
+          className={cn(
+            "relative flex flex-col gap-4 border-b border-foreground/10 px-3 py-3 sm:gap-5 sm:px-5 sm:py-5 md:flex-row md:items-center md:justify-between md:px-7 md:py-6",
+            "max-md:gap-2 max-md:py-2",
+          )}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-teal-600 max-md:hidden dark:text-teal-400">
               Übersicht
             </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              {primaryTitle}
+            <h1
+              className={cn(
+                "font-semibold tracking-tight text-foreground max-md:mt-0 max-md:text-lg max-md:leading-snug md:mt-1 md:text-2xl lg:text-3xl",
+                "max-md:line-clamp-2",
+              )}
+            >
+              {viewMode === "week" ? (
+                <>
+                  <span className="md:hidden">{weekTitleMobile}</span>
+                  <span className="hidden md:inline">{primaryTitle}</span>
+                </>
+              ) : (
+                monthTitle
+              )}
             </h1>
-            <p className="mt-1 max-w-md text-sm text-foreground/50">
+            <p className="mt-1 max-w-md text-sm text-foreground/50 max-md:hidden">
               {scheduled.length} Termin{scheduled.length === 1 ? "" : "e"} ·{" "}
               <Link href="/board" className="text-teal-600 underline-offset-2 hover:underline dark:text-teal-400">
                 Zum Board
@@ -686,9 +812,17 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
             </p>
           </div>
 
-          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-3">
+          <div
+            className={cn(
+              "flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-3",
+              "max-md:flex-row max-md:flex-wrap max-md:items-center max-md:justify-end max-md:gap-2",
+            )}
+          >
             <div
-              className="flex rounded-xl border border-foreground/12 bg-foreground/[0.03] p-1"
+              className={cn(
+                "flex rounded-xl border border-foreground/12 bg-foreground/[0.03] p-1",
+                "max-md:order-2 max-md:flex-1",
+              )}
               role="tablist"
               aria-label="Kalenderansicht"
             >
@@ -698,7 +832,7 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
                 aria-selected={viewMode === "month"}
                 onClick={openMonthView}
                 className={cn(
-                  "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  "rounded-lg px-3 py-2 text-sm font-medium transition-colors max-md:px-2.5 max-md:py-1.5 max-md:text-xs",
                   viewMode === "month"
                     ? "bg-teal-500/15 text-teal-800 dark:text-teal-200"
                     : "text-foreground/60 hover:text-foreground",
@@ -712,7 +846,7 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
                 aria-selected={viewMode === "week"}
                 onClick={switchToWeekView}
                 className={cn(
-                  "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  "rounded-lg px-3 py-2 text-sm font-medium transition-colors max-md:px-2.5 max-md:py-1.5 max-md:text-xs",
                   viewMode === "week"
                     ? "bg-teal-500/15 text-teal-800 dark:text-teal-200"
                     : "text-foreground/60 hover:text-foreground",
@@ -722,11 +856,16 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
               </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div
+              className={cn(
+                "flex flex-wrap items-center gap-2",
+                "max-md:order-1 max-md:flex-1 max-md:justify-start",
+              )}
+            >
               <button
                 type="button"
                 onClick={viewMode === "month" ? goPrevMonth : goPrevWeek}
-                className="rounded-xl border border-foreground/15 bg-background px-3 py-2 text-sm font-medium text-foreground/80 hover:border-foreground/25 hover:bg-foreground/5"
+                className="rounded-xl border border-foreground/15 bg-background px-3 py-2 text-sm font-medium text-foreground/80 hover:border-foreground/25 hover:bg-foreground/5 max-md:px-2.5 max-md:py-1.5"
                 aria-label={viewMode === "month" ? "Vorheriger Monat" : "Vorherige Woche"}
               >
                 ←
@@ -734,14 +873,14 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
               <button
                 type="button"
                 onClick={goToday}
-                className="rounded-xl border border-teal-500/40 bg-teal-500/10 px-4 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-500/15 dark:text-teal-200"
+                className="rounded-xl border border-teal-500/40 bg-teal-500/10 px-4 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-500/15 max-md:px-2.5 max-md:py-1.5 max-md:text-xs dark:text-teal-200"
               >
                 Heute
               </button>
               <button
                 type="button"
                 onClick={viewMode === "month" ? goNextMonth : goNextWeek}
-                className="rounded-xl border border-foreground/15 bg-background px-3 py-2 text-sm font-medium text-foreground/80 hover:border-foreground/25 hover:bg-foreground/5"
+                className="rounded-xl border border-foreground/15 bg-background px-3 py-2 text-sm font-medium text-foreground/80 hover:border-foreground/25 hover:bg-foreground/5 max-md:px-2.5 max-md:py-1.5"
                 aria-label={viewMode === "month" ? "Nächster Monat" : "Nächste Woche"}
               >
                 →
@@ -751,7 +890,7 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
         </header>
 
         {viewMode === "month" ? (
-          <div className="relative px-3 pb-5 pt-4 sm:px-5 sm:pb-7" key={`m-${year}-${month}`}>
+          <div className="relative px-2 pb-4 pt-3 sm:px-5 sm:pb-7 sm:pt-4" key={`m-${year}-${month}`}>
             <div className="mb-2 grid grid-cols-7 gap-1 text-center sm:gap-2">
               {WEEKDAYS.map((d) => (
                 <div
@@ -768,17 +907,25 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
                 const key = ymdKey(date);
                 const dayTasks = byDayDisplayed.get(key) ?? [];
                 const today = isSameDay(date, clock);
+                const holidayName = holidayByYmd.get(key);
 
                 return (
                   <div
                     key={`${key}-${i}`}
                     data-month-day={key}
+                    title={holidayName ?? undefined}
                     className={cn(
-                      "flex min-h-[5.5rem] flex-col rounded-2xl border p-1.5 transition-colors sm:min-h-[7.5rem] sm:p-2",
+                      "relative flex min-h-[5.5rem] flex-col rounded-2xl border p-1.5 transition-colors sm:min-h-[7.5rem] sm:p-2",
                       inCurrentMonth
                         ? "border-foreground/10 bg-background/70 dark:bg-background/40"
                         : "border-transparent bg-foreground/[0.02] opacity-50 dark:bg-foreground/[0.04]",
                       today && "ring-2 ring-teal-500/60 ring-offset-2 ring-offset-background dark:ring-teal-400/50",
+                      holidayName &&
+                        inCurrentMonth &&
+                        "border-amber-500/30 bg-[linear-gradient(145deg,rgba(245,158,11,0.12)_0%,transparent_42%,rgba(20,184,166,0.08)_100%)] shadow-[inset_0_1px_0_0_rgba(245,158,11,0.15)] dark:border-amber-400/25 dark:shadow-[inset_0_1px_0_0_rgba(251,191,36,0.12)]",
+                      holidayName &&
+                        !inCurrentMonth &&
+                        "border-amber-500/15 bg-amber-500/[0.06] dark:border-amber-400/10",
                     )}
                   >
                     <div className="flex items-start justify-between gap-1 px-0.5 pt-0.5">
@@ -800,6 +947,11 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
                         </span>
                       ) : null}
                     </div>
+                    {holidayName ? (
+                      <p className="mt-0.5 line-clamp-2 px-0.5 text-[0.58rem] font-semibold leading-snug text-amber-900 dark:text-amber-100/95">
+                        {holidayName}
+                      </p>
+                    ) : null}
 
                     <ul className="mt-1 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
                       {dayTasks.slice(0, 3).map((t) => (
@@ -826,10 +978,14 @@ export function TaskCalendar({ tasks: initialTasks, customers }: Props) {
             <StatusLegend unplannedCount={unplannedCount} />
           </div>
         ) : (
-          <div className="relative px-2 pb-5 pt-4 sm:px-4 sm:pb-7" key={`w-${ymdKey(weekStartMonday)}`}>
+          <div
+            className="relative px-1 pb-4 pt-2 sm:px-4 sm:pb-7 sm:pt-4"
+            key={`w-${ymdKey(weekStartMonday)}`}
+          >
             <GoogleStyleWeekBody
               weekDays={weekDays}
               byDay={byDayDisplayed}
+              holidayByYmd={holidayByYmd}
               clock={clock}
               onSelectTask={setDetailTask}
               onSchedulePreview={setSchedulePreview}

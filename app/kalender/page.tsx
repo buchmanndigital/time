@@ -23,7 +23,7 @@ export default async function KalenderPage() {
 
   return (
     <AuthenticatedAppShell userEmail={session.email}>
-      <div className="p-5 md:p-10">
+      <div className="px-2 py-2 sm:px-4 sm:py-4 md:p-10">
         <TaskCalendar tasks={tasks} customers={customers} />
       </div>
     </AuthenticatedAppShell>
