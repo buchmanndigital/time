@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoutForm } from "@/components/forms/logout-form";
-import { TaskNotificationManager } from "@/components/task-notification-manager";
 import { cn } from "@/lib/utils/cn";
 
 const LINKS = [
@@ -11,6 +10,7 @@ const LINKS = [
   { href: "/board", label: "Board" },
   { href: "/kalender", label: "Kalender" },
   { href: "/kunden", label: "Kunden" },
+  { href: "/einstellungen", label: "Einstellungen" },
 ] as const;
 
 export function AppSidebarNav({ onNavigate }: { onNavigate?: () => void }) {
@@ -20,7 +20,8 @@ export function AppSidebarNav({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex flex-col gap-8">
       <nav className="flex flex-col gap-0.5" aria-label="Hauptnavigation">
         {LINKS.map(({ href, label }) => {
-          const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+          const active =
+            href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
               key={href}
@@ -38,7 +39,6 @@ export function AppSidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           );
         })}
       </nav>
-      <TaskNotificationManager />
       <div className="border-t border-foreground/10 pt-4">
         <LogoutForm />
       </div>

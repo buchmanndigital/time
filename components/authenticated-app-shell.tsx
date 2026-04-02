@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AppSidebarNav } from "@/components/app-sidebar-nav";
+import { TaskNotificationProvider } from "@/components/task-notification-context";
 import { cn } from "@/lib/utils/cn";
 
 export function AuthenticatedAppShell({
@@ -24,7 +25,8 @@ export function AuthenticatedAppShell({
   }, [menuOpen]);
 
   return (
-    <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-x-hidden md:flex-row">
+    <TaskNotificationProvider>
+      <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-x-hidden md:flex-row">
       <header className="flex shrink-0 items-center justify-between border-b border-foreground/10 px-4 py-3 md:hidden">
         <span className="text-sm font-semibold tracking-[0.2em] text-foreground">TIME</span>
         <button
@@ -83,7 +85,8 @@ export function AuthenticatedAppShell({
       >
         {children}
       </main>
-    </div>
+      </div>
+    </TaskNotificationProvider>
   );
 }
 
