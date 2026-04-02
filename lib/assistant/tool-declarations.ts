@@ -156,12 +156,23 @@ export const ASSISTANT_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
     },
   },
   {
+    name: "list_imap_folders",
+    description:
+      "Listet alle IMAP-Ordner des verbundenen Postfachs mit exaktem Pfad (path). Zuerst nutzen, wenn der Nutzer Mails aus Unterordnern will (Webmail-Ordner ≠ immer gleicher Name: Pfad exakt von hier übernehmen). delimiter zeigt die Hierarchie-Trennung (oft Punkt).",
+    parameters: { type: SchemaType.OBJECT, properties: {} },
+  },
+  {
     name: "list_imap_emails",
     description:
-      "Liest die zuletzt eingegangenen E-Mails aus dem verbundenen IMAP-Postfach (nur Lesen, z. B. Strato). Nur nutzbar, wenn der Nutzer E-Mail unter Einstellungen verknüpft hat. Liefert uid (für get_imap_email_content), Betreff, Absender, Datum. Keine UUIDs im Nutzertext ausgeben.",
+      "Liest die neuesten E-Mails aus einem Ordner des verbundenen IMAP-Postfachs (nur Lesen, z. B. Strato). Standard-Ordner Posteingang: mailbox weglassen oder INBOX. Für andere Ordner exakten path von list_imap_folders verwenden. uid ist nur innerhalb dieses Ordners gültig. Keine UUIDs im Nutzertext ausgeben.",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
+        mailbox: {
+          type: SchemaType.STRING,
+          description:
+            "IMAP-Ordnerpfad (von list_imap_folders). Fehlt oder leer = INBOX / Posteingang.",
+        },
         limit: {
           type: SchemaType.INTEGER,
           description: "Max. Anzahl Mails (1–30, Standard 12).",
@@ -176,13 +187,17 @@ export const ASSISTANT_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: "get_imap_email_content",
     description:
-      "Lädt den Textinhalt einer konkreten E-Mail aus dem IMAP-Postfach (uid von list_imap_emails). Nur Lesen; Antwort den Nutzer kurz zusammenfassen, Zitate gekürzt.",
+      "Lädt den Textinhalt einer E-Mail (uid von list_imap_emails). Derselbe mailbox-Pfad wie bei der Liste – sonst falsche Mail oder Fehler. Nur Lesen; Inhalt kurz zusammenfassen.",
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
+        mailbox: {
+          type: SchemaType.STRING,
+          description: "Gleicher Ordner wie bei list_imap_emails. Fehlt/leer = INBOX.",
+        },
         uid: {
           type: SchemaType.INTEGER,
-          description: "IMAP-UID der Nachricht (von list_imap_emails).",
+          description: "IMAP-UID der Nachricht (von list_imap_emails in diesem Ordner).",
         },
         max_chars: {
           type: SchemaType.INTEGER,

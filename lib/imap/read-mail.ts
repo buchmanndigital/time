@@ -9,6 +9,33 @@ export type ImapListedMessage = {
   date: string | null;
 };
 
+export type ImapFolderInfo = {
+  path: string;
+  name: string;
+  /** z. B. \Inbox, \Sent – wenn der Server es setzt */
+  special_use: string | null;
+};
+
+const MAILBOX_MAX_LEN = 500;
+
+/** Validiert den Ordnerpfad für IMAP SELECT (UTF-8 wie ImapFlow). */
+export function parseImapMailboxPath(raw: unknown): { ok: true; path: string } | { ok: false; error: string } {
+  if (raw == null || raw === "") {
+    return { ok: true, path: "INBOX" };
+  }
+  const s = typeof raw === "string" ? raw.trim() : String(raw).trim();
+  if (!s) {
+    return { ok: true, path: "INBOX" };
+  }
+  if (s.length > MAILBOX_MAX_LEN) {
+    return { ok: false, error: `Ordnerpfad zu lang (max. ${MAILBOX_MAX_LEN} Zeichen).` };
+  }
+  if (/[\r\n\x00]/.test(s)) {
+    return { ok: false, error: "Ungültiger Ordnerpfad." };
+  }
+  return { ok: true, path: s };
+}
+
 function clientFor(cfg: ImapConnectConfig): ImapFlow {
   return new ImapFlow({
     host: cfg.host,
@@ -62,19 +89,65 @@ function normalizeDate(d: Date | undefined | null): string | null {
   return d.toISOString();
 }
 
+const MAX_LISTED_FOLDERS = 250;
+
 /**
- * Die letzten Nachrichten aus INBOX (nach Datum absteigend), nur Metadaten.
+ * Alle wählbaren IMAP-Ordner (Pfade), alphabetisch. Hilft beim Finden exakter Pfade für Unterordner.
  */
-export async function listRecentInboxMessages(
+export async function listImapMailboxPaths(
   cfg: ImapConnectConfig,
+): Promise<
+  | { ok: true; delimiter: string; folders: ImapFolderInfo[]; list_truncated: boolean }
+  | { ok: false; error: string }
+> {
+  const client = clientFor(cfg);
+  try {
+    await client.connect();
+    const entries = await client.list();
+    await client.logout();
+
+    const folders: ImapFolderInfo[] = entries
+      .map((e) => ({
+        path: e.path,
+        name: e.name,
+        special_use: e.specialUse ?? null,
+      }))
+      .sort((a, b) => a.path.localeCompare(b.path, "de"));
+
+    const delimiter = entries[0]?.delimiter ?? ".";
+    const list_truncated = folders.length > MAX_LISTED_FOLDERS;
+
+    return {
+      ok: true,
+      delimiter,
+      list_truncated,
+      folders: folders.slice(0, MAX_LISTED_FOLDERS),
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "IMAP: Ordner konnten nicht gelistet werden";
+    try {
+      await client.logout();
+    } catch {
+      /* ignore */
+    }
+    return { ok: false, error: msg.length > 220 ? `${msg.slice(0, 220)}…` : msg };
+  }
+}
+
+/**
+ * Die letzten Nachrichten aus einem Ordner (nach Datum absteigend), nur Metadaten.
+ */
+export async function listRecentMailboxMessages(
+  cfg: ImapConnectConfig,
+  mailboxPath: string,
   options: { limit: number; sinceDays?: number },
 ): Promise<{ ok: true; messages: ImapListedMessage[] } | { ok: false; error: string }> {
   const limit = Math.min(Math.max(1, options.limit), 30);
   const client = clientFor(cfg);
   try {
     await client.connect();
-    const inbox = await client.mailboxOpen("INBOX");
-    const exists = inbox.exists ?? 0;
+    const box = await client.mailboxOpen(mailboxPath);
+    const exists = box.exists ?? 0;
     if (exists === 0) {
       await client.logout();
       return { ok: true, messages: [] };
@@ -86,7 +159,7 @@ export async function listRecentInboxMessages(
         ? new Date(Date.now() - options.sinceDays * 86_400_000)
         : null;
 
-    const lock = await client.getMailboxLock("INBOX");
+    const lock = await client.getMailboxLock(mailboxPath);
     try {
       for await (const msg of client.fetch(`${fromSeq}:${exists}`, {
         uid: true,
@@ -129,8 +202,9 @@ export async function listRecentInboxMessages(
 /**
  * Volltext (plain bevorzugt, sonst HTML bereinigt), gekappt.
  */
-export async function fetchInboxMessageBody(
+export async function fetchMailboxMessageBody(
   cfg: ImapConnectConfig,
+  mailboxPath: string,
   uid: number,
   maxChars: number,
 ): Promise<
@@ -148,8 +222,8 @@ export async function fetchInboxMessageBody(
   const client = clientFor(cfg);
   try {
     await client.connect();
-    await client.mailboxOpen("INBOX");
-    const lock = await client.getMailboxLock("INBOX");
+    await client.mailboxOpen(mailboxPath);
+    const lock = await client.getMailboxLock(mailboxPath);
     let msg: Awaited<ReturnType<typeof client.fetchOne>> = false;
     try {
       msg = await client.fetchOne(
@@ -163,7 +237,7 @@ export async function fetchInboxMessageBody(
     await client.logout();
 
     if (!msg || !msg.source) {
-      return { ok: false, error: "Nachricht nicht gefunden (falsche UID oder gelöscht)." };
+      return { ok: false, error: "Nachricht nicht gefunden (falsche UID, falscher Ordner oder gelöscht)." };
     }
 
     const parsed = await simpleParser(msg.source);

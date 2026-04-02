@@ -20,8 +20,11 @@ const TOOL_PROGRESS_LABEL: Partial<Record<string, { start: string }>> = {
   web_research: {
     start: "Browser Use: Öffentliche Web-Recherche läuft (Browser in der Cloud) …",
   },
+  list_imap_folders: {
+    start: "IMAP: Ordnerliste wird geladen …",
+  },
   list_imap_emails: {
-    start: "IMAP: Posteingang wird gelesen …",
+    start: "IMAP: E-Mails werden gelesen …",
   },
   get_imap_email_content: {
     start: "IMAP: E-Mail wird geladen …",
