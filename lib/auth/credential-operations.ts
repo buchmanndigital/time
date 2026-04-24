@@ -27,6 +27,17 @@ export function checkAuthConfig(): AuthFormState | null {
 
 function authUnexpectedError(context: string, e: unknown): AuthFormState {
   console.error(`[auth] ${context}`, e);
+  const msg = e instanceof Error ? e.message : String(e);
+  // Neon: HTTP 402 / eingefrorener Free-Tier / Compute-Quote
+  if (
+    /exceeded the compute time quota|status 402|HTTP status 402/i.test(msg) ||
+    (/compute/i.test(msg) && /quota/i.test(msg))
+  ) {
+    return {
+      error:
+        "Datenbank (Neon): Speicher- oder Compute-Limit erreicht. In https://console.neon.tech dein Projekt öffnen — ggf. Plan upgraden, Zahlung hinterlegen oder bis zur nächsten Abrechnungsperiode warten, bis wieder Kapazität frei ist.",
+    };
+  }
   return {
     error:
       "Anmeldung derzeit nicht möglich. Bitte kurz warten und erneut versuchen. Wenn das so bleibt, prüfe DATABASE_URL und die Datenbankverbindung.",
